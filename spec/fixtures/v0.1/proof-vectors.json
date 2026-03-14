@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "version": "0.1.1",
+    "hash": "sha256",
+    "description": "Reference Merkle proof vectors"
+  },
+  "tree": {
+    "leaves": ["l0", "l1", "l2", "l3"],
+    "leafHashes": {
+      "l0": "48dbc45a6738318c9e35db13781199f18495e5a61272ff94b60b30b8079da5c1",
+      "l1": "2804bad6fe94a55f18b2b37e300919a5fd517b95aa81e95db574c0ba069a3740",
+      "l2": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "l3": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724"
+    },
+    "root": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+  },
+  "vectors": [
+    {
+      "name": "valid-proof-l2",
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc",
+      "expected": true
+    },
+    {
+      "name": "invalid-wrong-sibling-order",
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "left" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc",
+      "expected": false
+    },
+    {
+      "name": "invalid-wrong-root",
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "48dbc45a6738318c9e35db13781199f18495e5a61272ff94b60b30b8079da5c1",
+      "expected": false
+    }
+  ]
+}

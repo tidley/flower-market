@@ -197,6 +197,11 @@ Reference implementation path:
 - `packages/flower-contextvm/src/envelope.test.ts`
 - `packages/flower-contextvm/src/settlement.test.ts`
 
+Reference fixture path:
+- `spec/fixtures/v0.1/proof-vectors.json`
+- `spec/fixtures/v0.1/settlement-vectors.json`
+- `spec/fixtures/v0.1/envelope-vectors.json`
+
 Conformance requirement:
 - test coverage MUST be >=95%; target is 100%.
 

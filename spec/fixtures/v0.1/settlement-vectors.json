@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "version": "0.1.1",
+    "description": "Reference deterministic ranking vectors"
+  },
+  "input": {
+    "challengeId": "ch_vec_1",
+    "epoch": 1,
+    "payoutSchedule": [15, 10, 5],
+    "reliabilityBonusMsats": 1000
+  },
+  "reveals": [
+    { "responder": "r3", "commitTs": 2, "revealTs": 20, "valid": true, "latencyMs": 100, "reliabilityScore": 0.89 },
+    { "responder": "r2", "commitTs": 1, "revealTs": 20, "valid": true, "latencyMs": 80, "reliabilityScore": 0.90 },
+    { "responder": "r1", "commitTs": 1, "revealTs": 10, "valid": true, "latencyMs": 200, "reliabilityScore": 0.95 },
+    { "responder": "bad", "commitTs": 0, "revealTs": 1, "valid": false, "latencyMs": 1, "reliabilityScore": 1.0 }
+  ],
+  "expectedOrder": ["r1", "r2", "r3"],
+  "expectedTotalsMsats": [16000, 10500, 5000],
+  "expectedExcluded": ["bad"]
+}

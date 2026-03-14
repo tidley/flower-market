@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "version": "0.1.1",
+    "description": "Canonical-equivalence envelope hashing vectors"
+  },
+  "programA": { "name": "flower-contextvm", "version": "0.1.0" },
+  "programB": { "version": "0.1.0", "name": "flower-contextvm" },
+  "inputA": { "challengeId": "c1", "epoch": 1, "payout": [15, 10, 5] },
+  "inputB": { "payout": [15, 10, 5], "epoch": 1, "challengeId": "c1" },
+  "outputA": { "winners": [{ "responder": "npub1", "totalMsats": 16000 }] },
+  "outputB": { "winners": [{ "totalMsats": 16000, "responder": "npub1" }] }
+}

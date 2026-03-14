@@ -16,3 +16,5 @@
 - Achieved 100% coverage (lines/branches/functions/statements) for `flower-contextvm`
 - Added protocol draft: `spec/flower-market-v0.1.md` (normative schemas + deterministic rules)
 - Completed schema lock pass (field constraints, reject rules, storage-agnostic interface, reference tests)
+- Added conformance JSON fixtures under `spec/fixtures/v0.1/`
+- Added executable conformance test (`conformance.test.ts`) bound to fixtures

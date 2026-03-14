@@ -9,3 +9,5 @@
 - Implemented Merkle proof verifier core and adversarial vectors in `flower-contextvm`.
 - Added coverage tooling and enforced >=95% thresholds.
 - Reached 100% coverage across settlement/envelope/proof/index modules.
+- Ran schema lock pass for `spec/flower-market-v0.1.md`.
+- Added storage-agnostic compatibility model and reference compatibility tests.

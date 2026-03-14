@@ -1,45 +1,79 @@
 # Flower Market Protocol v0.1 (Draft)
 
 Status: Draft  
-Version: 0.1.0
+Version: 0.1.1
 
 ## 1. Scope
 
-Flower Market defines a relay-native, blossom-backed retrieval market with deterministic settlement.
+Flower Market defines a relay-native retrieval market with deterministic settlement.
 
 This spec standardizes:
-- challenge/commit/reveal/settlement events,
+- challenge / commit / reveal / settlement events,
 - Merkle proof verification inputs,
 - deterministic ranking and payout computation,
-- replayable settlement envelope hashes.
+- replayable settlement envelope hashes,
+- storage-agnostic content addressing.
 
 ## 2. Normative language
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, **MAY** are to be interpreted as in RFC 2119.
 
-## 3. Architecture constraints
+## 3. Roles and terminology
+
+- **Storage Provider (SP):** participant offering retrievable data for challenges.
+- **Data Owner (DO):** participant funding or requesting retrievability.
+- **Verifier:** participant re-running deterministic validation and settlement.
+- **Settlement Publisher:** actor that publishes settlement event(s); MAY be any verifier.
+
+## 4. Architecture constraints
 
 1. Protocol state MUST be represented as signed relay events.
-2. Data blobs/chunks MUST be addressed and fetched from Blossom-compatible storage.
-3. Settlement logic MUST be deterministic and re-runnable from public inputs.
-4. SHA-256 MUST be used for hashing in v0.1.
+2. Settlement logic MUST be deterministic and re-runnable from public inputs.
+3. SHA-256 MUST be used for hashing in v0.1.
+4. Storage backends MUST be treated as interchangeable implementations behind a common content reference + proof interface.
 
-## 4. Canonical data rules
+## 5. Storage-agnostic compatibility model
+
+### 5.1 Backend neutrality
+
+Storage Providers MAY use any internal storage implementation (filesystem, DB, object store, IPFS, Blossom, etc.) if they satisfy protocol outputs.
+
+### 5.2 Required interoperability surface
+
+For each challenged datum, an implementation MUST be able to provide:
+
+1. `contentRef` (string): backend-specific locator (CID, Blossom id, URL, key, etc.)
+2. `leafHash` (sha256 hex)
+3. `proof[]` where each node is `{ hash, position }`
+4. `expectedRoot` (sha256 hex)
+
+A verifier MUST NOT depend on backend-specific internals. Verification MUST be performed from `leafHash + proof + expectedRoot` only.
+
+### 5.3 Recommended locator scheme
+
+Use explicit URI-like prefixes for `contentRef`:
+- `blossom:<id>`
+- `ipfs:<cid>`
+- `https://...`
+- `db:<opaque-key>`
+
+## 6. Canonical data and hashing rules
 
 1. Event payloads used for hashing MUST be canonical JSON with lexicographically sorted object keys.
 2. Hash outputs MUST be lowercase hex strings.
 3. Branch positions in Merkle proofs MUST be explicit: `left` or `right`.
+4. Pair hashing MUST be order-sensitive: `H(left || right)`.
 
-## 5. Event schemas
+## 7. Locked event schemas
 
-## 5.1 Challenge
+## 7.1 Challenge
 
 ```json
 {
   "type": "challenge",
   "challengeId": "ch_2026_0001",
   "epoch": 1,
-  "blobId": "<blossom-id>",
+  "contentRef": "blossom:<id>",
   "merkleRoot": "<sha256-hex>",
   "leafIndex": 42,
   "nonce": "<hex-or-string>",
@@ -52,10 +86,13 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **MAY** are to be interpreted 
 
 Rules:
 - `challengeId` MUST be globally unique.
+- `epoch` MUST be integer >= 0.
+- `leafIndex` MUST be integer >= 0.
 - `commitDeadline` MUST be < `revealDeadline`.
-- `payoutSchedule` SHOULD include at least 3 entries.
+- `payoutSchedule` MUST contain at least 3 non-negative integers.
+- `reliabilityBonusMsats` MUST be integer >= 0.
 
-## 5.2 Commit
+## 7.2 Commit
 
 ```json
 {
@@ -68,10 +105,10 @@ Rules:
 ```
 
 Rules:
-- Commit MUST be published before `commitDeadline`.
+- Commit MUST be published at or before `commitDeadline`.
 - `commitHash` MUST commit to reveal payload and nonce.
 
-## 5.3 Reveal
+## 7.3 Reveal
 
 ```json
 {
@@ -92,11 +129,12 @@ Rules:
 ```
 
 Rules:
-- Reveal MUST be published before `revealDeadline`.
+- Reveal MUST be published at or before `revealDeadline`.
+- `latencyMs` MUST be integer >= 0.
 - `proof` nodes MUST be evaluated in listed order.
 - `leafHash + proof` MUST reconstruct `expectedRoot`.
 
-## 5.4 Settlement
+## 7.4 Settlement
 
 ```json
 {
@@ -117,9 +155,10 @@ Rules:
 
 Rules:
 - Settlement MUST be reproducible from challenge + reveals + deterministic program version.
-- A settlement publisher SHOULD include payment references once paid.
+- `rank` MUST be unique and in [1,2,3].
+- `totalMsats` MUST equal `baseSats * 1000 + bonusMsats`.
 
-## 6. Deterministic ranking and payout
+## 8. Deterministic ranking and payout
 
 1. Exclude reveals with invalid proofs.
 2. Sort valid reveals by:
@@ -134,16 +173,37 @@ Rules:
    - else => 0x
 6. `totalMsats = baseSats * 1000 + bonusMsats`.
 
-## 7. Security requirements
+## 9. Security requirements
 
 1. Implementations MUST validate signatures on all events.
 2. Implementations MUST reject late commits/reveals.
-3. Implementations SHOULD enforce replay protection using `challengeId` and unique commit/reveal tuples.
+3. Implementations MUST enforce replay protection using `challengeId` and unique commit/reveal tuples.
 4. Implementations SHOULD use commit-reveal to reduce front-running.
 
-## 8. Conformance
+## 10. Reference compatibility tests
+
+Participants SHOULD run reference tests before joining production rounds.
+
+Minimum required vectors:
+1. valid proof -> verification true
+2. wrong sibling order -> false
+3. tampered leaf -> false
+4. wrong root -> false
+5. deterministic envelope equality for semantically identical canonical input
+6. deterministic ranking tie-break (commitTs, revealTs, latency)
+
+Reference implementation path:
+- `packages/flower-contextvm/src/proof.test.ts`
+- `packages/flower-contextvm/src/envelope.test.ts`
+- `packages/flower-contextvm/src/settlement.test.ts`
+
+Conformance requirement:
+- test coverage MUST be >=95%; target is 100%.
+
+## 11. Conformance
 
 An implementation is v0.1-conformant if it:
-- passes Merkle proof vectors (valid + invalid),
+- passes reference proof vectors,
 - reproduces deterministic winner order,
-- reproduces settlement envelope hashes for equivalent canonical input.
+- reproduces settlement envelope hashes for equivalent canonical input,
+- satisfies schema and rule constraints in sections 5-10.

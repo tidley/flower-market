@@ -15,3 +15,4 @@
 - Added coverage gate (`vitest --coverage`) with threshold 95%+
 - Achieved 100% coverage (lines/branches/functions/statements) for `flower-contextvm`
 - Added protocol draft: `spec/flower-market-v0.1.md` (normative schemas + deterministic rules)
+- Completed schema lock pass (field constraints, reject rules, storage-agnostic interface, reference tests)

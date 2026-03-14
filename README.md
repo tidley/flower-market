@@ -11,9 +11,17 @@ It builds on Merkle proofs and challenge-response rounds to reward storage nodes
 - fast to respond, and
 - consistently reliable.
 
-## Why
+## Why Flower Market
 
 Traditional storage claims are hard to verify in real time. Flower Market adds an open market mechanism where nodes prove retrievability and get paid based on objective verification.
+
+What is novel here:
+
+- **Relay-native control plane (Nostr):** challenge/commit/reveal/settlement can run as signed relay events.
+- **Storage-agnostic compatibility:** providers can use Blossom, IPFS, DB, filesystems, etc., as long as they produce standard proof outputs.
+- **Deterministic ContextVM settlement:** anyone can re-run and verify winner ranking and payout outputs from public inputs.
+- **Fast retrieval bounty incentives:** ranked rewards (15/10/5 sats) plus reliability bonus.
+- **Peer replication marketplace:** participants can buy/sell data transfer and join retrieval competition after verification.
 
 ## Core Concept
 

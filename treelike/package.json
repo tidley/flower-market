@@ -1,0 +1,31 @@
+{
+  "name": "treelike",
+  "version": "1.0.14",
+  "type": "module",
+  "description": "Treelike subscribable data structure that can be easily synced over different transports",
+  "main": "dist/treelike.umd.js",
+  "module": "dist/treelike.es.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "vitest",
+    "build": "vite build && tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/irislib/treelike.git"
+  },
+  "author": "Martti Malmi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/irislib/treelike/issues"
+  },
+  "homepage": "https://github.com/irislib/treelike",
+  "documentation": "https://treelike.iris.to",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0"
+  }
+}

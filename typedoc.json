@@ -1,0 +1,6 @@
+{
+  "entryPoints": ["treelike", "treelike-nostr", "treelike-hooks"],
+  "name": "treelike",
+  "entryPointStrategy": "packages",
+  "includeVersion": true 
+}

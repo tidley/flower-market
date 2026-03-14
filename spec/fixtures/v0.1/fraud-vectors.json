@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Fraud/dispute hook vectors"
+  },
+  "validFraudProof": {
+    "type": "market.fraud_proof",
+    "fraudId": "fr_001",
+    "transferId": "tr_001",
+    "listingId": "lst_001",
+    "reporter": "npub_reporter",
+    "reason": "invalid_transfer_proof",
+    "evidence": {
+      "sampleLeafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "sampleProof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "left" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "merkleRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+    }
+  }
+}

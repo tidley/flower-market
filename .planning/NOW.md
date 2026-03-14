@@ -2,11 +2,11 @@
 
 ## In progress
 
-1. **Pipeline conformance fixture extension**
-   - add pipeline-level vectors including deadline failures
+1. **Spec polish pass**
+   - tighten any remaining wording ambiguities after fixture + fraud hook extensions
 
-2. **Marketplace fraud/dispute hooks (P5c)**
-   - draft fraud-proof event schema and rollback semantics
+2. **Implementation roadmap checkpoint**
+   - map next code modules (payout adapter + relay event ingestion)
 
-3. **Spec polish pass**
-   - tighten any remaining wording ambiguities after fixture extension
+3. **Demo scenario doc**
+   - one complete end-to-end walkthrough from challenge to settlement + marketplace transfer

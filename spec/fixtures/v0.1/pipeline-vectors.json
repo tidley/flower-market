@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Pipeline conformance vectors for proof+deadline integration"
+  },
+  "challenge": {
+    "challengeId": "ch_pipe_1",
+    "epoch": 1,
+    "payoutSchedule": [15, 10, 5],
+    "reliabilityBonusMsats": 1000,
+    "merkleRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc",
+    "commitDeadline": 100,
+    "revealDeadline": 200
+  },
+  "reveals": [
+    {
+      "responder": "valid",
+      "commitTs": 10,
+      "revealTs": 20,
+      "latencyMs": 50,
+      "reliabilityScore": 0.95,
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+    },
+    {
+      "responder": "late-commit",
+      "commitTs": 101,
+      "revealTs": 102,
+      "latencyMs": 1,
+      "reliabilityScore": 1,
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+    },
+    {
+      "responder": "late-reveal",
+      "commitTs": 99,
+      "revealTs": 201,
+      "latencyMs": 1,
+      "reliabilityScore": 1,
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+    },
+    {
+      "responder": "wrong-root",
+      "commitTs": 5,
+      "revealTs": 6,
+      "latencyMs": 1,
+      "reliabilityScore": 1,
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "48dbc45a6738318c9e35db13781199f18495e5a61272ff94b60b30b8079da5c1"
+    },
+    {
+      "responder": "bad-proof",
+      "commitTs": 1,
+      "revealTs": 2,
+      "latencyMs": 1,
+      "reliabilityScore": 1,
+      "leafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "proof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "left" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "expectedRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+    }
+  ],
+  "expectedWinners": ["valid"],
+  "expectedExcluded": ["late-commit", "late-reveal", "wrong-root", "bad-proof"]
+}

@@ -29,3 +29,19 @@ export function rejectDuplicateSettlement(seenTransferIds: Set<string>, transfer
   seenTransferIds.add(transferId);
   return false;
 }
+
+export interface FraudProofInput {
+  sampleLeafHash: string;
+  sampleProof: MerkleProofNode[];
+  merkleRoot: string;
+}
+
+export function validateFraudProof(input: FraudProofInput): boolean {
+  // valid fraud proof in v0.1 means proving transfer proof is invalid against claimed root
+  return !verifyMerkleProof(input.sampleLeafHash, input.sampleProof, input.merkleRoot);
+}
+
+export function applyFraudRollback(current: EligibilityState, hasValidFraudProof: boolean): EligibilityState {
+  if (!hasValidFraudProof) return current;
+  return 'none';
+}

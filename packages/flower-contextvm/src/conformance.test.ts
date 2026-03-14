@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import envelopeVectors from '../../../spec/fixtures/v0.1/envelope-vectors.json';
+import pipelineVectors from '../../../spec/fixtures/v0.1/pipeline-vectors.json';
 import proofVectors from '../../../spec/fixtures/v0.1/proof-vectors.json';
 import settlementVectors from '../../../spec/fixtures/v0.1/settlement-vectors.json';
 import { buildSettlementEnvelope } from './envelope.ts';
+import { settleChallengeFromProofs } from './pipeline.ts';
 import { settleChallenge } from './settlement.ts';
 import { verifyMerkleProof } from './proof.ts';
 
@@ -37,5 +39,11 @@ describe('v0.1 conformance fixtures', () => {
     expect(env1.programHash).toBe(env2.programHash);
     expect(env1.inputHash).toBe(env2.inputHash);
     expect(env1.outputHash).toBe(env2.outputHash);
+  });
+
+  it('pipeline vectors enforce deadline/proof/root invalidation', () => {
+    const out = settleChallengeFromProofs(pipelineVectors.challenge, pipelineVectors.reveals);
+    expect(out.winners.map((w) => w.responder)).toEqual(pipelineVectors.expectedWinners);
+    expect(out.excluded).toEqual(pipelineVectors.expectedExcluded);
   });
 });

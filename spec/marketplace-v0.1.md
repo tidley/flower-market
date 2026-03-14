@@ -134,13 +134,40 @@ Transitions:
 2. When cooldown elapsed and no fraud event: `pending -> active`
 3. On fraud proof: `pending|active -> none`
 
-## 5. Security requirements
+## 5. Fraud and dispute hooks (v0.1)
+
+### 5.1 Fraud Proof event
+
+```json
+{
+  "type": "market.fraud_proof",
+  "fraudId": "fr_001",
+  "transferId": "tr_001",
+  "listingId": "lst_001",
+  "reporter": "<npub>",
+  "reason": "invalid_transfer_proof",
+  "evidence": {
+    "sampleLeafHash": "<sha256-hex>",
+    "sampleProof": [
+      { "hash": "<sha256-hex>", "position": "left" }
+    ],
+    "merkleRoot": "<sha256-hex>"
+  }
+}
+```
+
+Rules:
+- Fraud proof MUST include sufficient evidence to recompute invalidity.
+- Fraud proof is valid when evidence demonstrates transfer proof invalidity.
+- Valid fraud proof MUST force eligibility rollback to `none`.
+
+## 6. Security requirements
 
 - Implementations MUST verify event signatures and identity binding for seller/buyer roles.
 - Implementations MUST reject duplicate settlement for same `transferId`.
-- Implementations SHOULD support fraud proof events in v0.2.
+- Implementations SHOULD verify fraud proof evidence before rollback.
 
-## 6. Conformance vectors
+## 7. Conformance vectors
 
 Implemented fixture path:
 - `spec/fixtures/v0.1/marketplace-vectors.json`
@@ -153,3 +180,5 @@ Required vectors:
 2. invalid transfer proof
 3. cooldown enforcement
 4. duplicate settlement rejection
+5. valid fraud proof -> rollback to `none`
+6. invalid fraud proof -> no rollback

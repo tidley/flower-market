@@ -14,3 +14,4 @@
 - Added proof/adversarial test vectors (valid, wrong-order, tampered leaf, wrong root)
 - Added coverage gate (`vitest --coverage`) with threshold 95%+
 - Achieved 100% coverage (lines/branches/functions/statements) for `flower-contextvm`
+- Added protocol draft: `spec/flower-market-v0.1.md` (normative schemas + deterministic rules)

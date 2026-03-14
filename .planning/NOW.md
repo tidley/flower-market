@@ -5,8 +5,8 @@
 1. **Settlement integration with proof validity flag**
    - Ensure invalid proofs are excluded before ranking
 
-2. **Spec hardening for deterministic rules**
-   - Update `design/flower-market/contextvm-v0.md` with canonical hash/input requirements
+2. **Protocol formalization (v0.1 review pass)**
+   - Validate `spec/flower-market-v0.1.md` against implementation + add any missing constraints
 
-3. **Protocol formalization (v0.1 draft)**
-   - Add normative MUST/SHOULD language and field schemas
+3. **Conformance fixtures**
+   - Add JSON fixtures for deterministic settlement envelope replay

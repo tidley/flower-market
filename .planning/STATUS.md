@@ -14,5 +14,14 @@ Phase 1 — deterministic core and protocol formalization.
 - Deterministic envelope hashing (`buildSettlementEnvelope`)
 - Initial tests passing (8 total)
 
+## Planned phases (high level)
+- P0 Foundations ✅
+- P1 Proof Core (in progress)
+- P2 Protocol Spec v0.1
+- P3 Settlement Integration
+- P4 Payout Engine Interface
+- P5 Marketplace (peer buy/sell replication)
+- P6 Simulation + Hardening
+
 ## Next checkpoint
 Implement Merkle proof verification with test vectors.

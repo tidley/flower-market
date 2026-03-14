@@ -24,4 +24,4 @@ Phase 1 — deterministic core and protocol formalization.
 - P6 Simulation + Hardening
 
 ## Next checkpoint
-Implement Merkle proof verification with test vectors.
+Integrate proof validity into settlement flow and formalize protocol spec v0.1.

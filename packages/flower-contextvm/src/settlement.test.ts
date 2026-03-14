@@ -39,6 +39,17 @@ describe('settleChallenge', () => {
     expect(out.winners[2].responder).toBe('C');
   });
 
+  it('uses revealTs then latencyMs as tie-breakers', () => {
+    const reveals: RevealResult[] = [
+      makeReveal({ responder: 'r3', commitTs: 1, revealTs: 20, latencyMs: 90 }),
+      makeReveal({ responder: 'r2', commitTs: 1, revealTs: 20, latencyMs: 80 }),
+      makeReveal({ responder: 'r1', commitTs: 1, revealTs: 10, latencyMs: 100 }),
+    ];
+
+    const out = settleChallenge(baseInput, reveals);
+    expect(out.winners.map((w) => w.responder)).toEqual(['r1', 'r2', 'r3']);
+  });
+
   it('excludes invalid reveals', () => {
     const reveals: RevealResult[] = [
       makeReveal({ responder: 'valid-1', commitTs: 1 }),
@@ -92,5 +103,21 @@ describe('settleChallenge', () => {
     expect(out.winners[0].totalMsats).toBe(16000);
     expect(out.winners[1].totalMsats).toBe(10500);
     expect(out.winners[2].totalMsats).toBe(5000);
+  });
+
+  it('falls back to 0 sats when payout schedule index is missing', () => {
+    const input: ChallengeInput = {
+      ...baseInput,
+      payoutSchedule: [15, 10, undefined as unknown as number],
+    };
+
+    const reveals: RevealResult[] = [
+      makeReveal({ responder: 'r1', commitTs: 1 }),
+      makeReveal({ responder: 'r2', commitTs: 2 }),
+      makeReveal({ responder: 'r3', commitTs: 3 }),
+    ];
+
+    const out = settleChallenge(input, reveals);
+    expect(out.winners[2].baseSats).toBe(0);
   });
 });

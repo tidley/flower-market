@@ -13,3 +13,5 @@
 - Added storage-agnostic compatibility model and reference compatibility tests.
 - Added and validated reference conformance fixture set (proof, settlement, envelope).
 - Maintained 100% coverage after fixture-based conformance tests.
+- Implemented P3 pipeline integration where validity is computed internally from proofs and deadlines.
+- Verified P3 with dedicated tests; coverage remains 100%.

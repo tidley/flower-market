@@ -18,3 +18,5 @@
 - Completed schema lock pass (field constraints, reject rules, storage-agnostic interface, reference tests)
 - Added conformance JSON fixtures under `spec/fixtures/v0.1/`
 - Added executable conformance test (`conformance.test.ts`) bound to fixtures
+- Completed P3: integrated proof+deadline validation into settlement pipeline (`settleChallengeFromProofs`)
+- Added pipeline tests for invalid proof exclusion, deadline rejection, and root mismatch rejection

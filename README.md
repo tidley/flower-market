@@ -1,96 +1,50 @@
-treelike
-======
-treelike is a simple treelike data structure with subscribable nodes. It can be easily synced over different transports.
- 
-For example, it provides a very simple way for local state management in React applications. The state can be optionally persisted in localStorage or synced between browser tabs.
+# Flower Market
 
-Similarly, it can be used for "public state" management to synchronize with other users and devices. You can easily build all kinds of decentralized applications where accounts are public keys.
+Flower Market is a retrieval-bounty marketplace for verifiable data availability.
 
-See it in action on [docs.iris.to](https://docs.iris.to/).
+It builds on Merkle proofs and challenge-response rounds to reward storage nodes that are:
 
-It's inspired by [GunDB](https://github.com/amark/gun) and has a similar API.
+- online,
+- fast to respond, and
+- consistently reliable.
 
-[Documentation](https://treelike.iris.to/)
+## Why
+
+Traditional storage claims are hard to verify in real time. Flower Market adds an open market mechanism where nodes prove retrievability and get paid based on objective verification.
+
+## Core Concept
+
+1. A challenger posts a retrieval challenge for a blob/chunk.
+2. Responders submit a commit (anti-front-running).
+3. Responders reveal proof + data fragment.
+4. Verifiers validate Merkle inclusion + timing.
+5. Top responders receive payouts.
+
+Initial payout target:
+
+- 1st: 15 sats
+- 2nd: 10 sats
+- 3rd: 5 sats
+- plus reliability bonus (msat-scale)
+
+## Current Status
+
+This repository currently contains:
+
+- baseline code imported from treelike,
+- Flower Market design draft (`design/flower-market/v0.1.md`),
+- initial repository setup on GitHub + ngit.
 
 ## Repository Mirrors
 
-- GitHub: https://github.com/tidley/treelike
-- ngit (Nostr): nostr://npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/treelike
-- ngit web: https://gitworkshop.dev/npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/treelike
+- GitHub: https://github.com/tidley/flower-market
+- ngit (Nostr): nostr://npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market
+- ngit web: https://gitworkshop.dev/npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market
 
-## Installation
+## Next Steps
 
-Just treelike, e.g. local use: 
-```
-npm install treelike
-```
-
-With Nostr: 
-```
-npm install @nostr-dev-kit/ndk @nostr-dev-kit/ndk-cache-dexie nostr-tools treelike treelike-nostr
-```
-
-React hooks:
-```
-npm install @nostr-dev-kit/ndk @nostr-dev-kit/ndk-cache-dexie nostr-tools treelike treelike-nostr treelike-hooks
-```
-
-(non-treelike libs are peer dependencies)
-
-## Examples
-
-### Persist React app local state in localStorage and sync between tabs
-
-```tsx
-import { useLocalState } from 'treelike-hooks';
-
-function LoginDialog() {
-  const [myPrivateKey, setMyPrivateKey] = useLocalState('user/privateKey', '');
-  
-  function onChange(e) {
-    const val = e.target.value;
-    if (val.length === 64) {
-      setMyPrivateKey(val);
-    }
-  }
-
-  if (!myPrivateKey) {
-    return (
-      <div>
-        <input type="password" onChange={onChange} placeholder="Paste private key" />
-      </div>
-    );
-  }
-    
-  return (
-    <div>
-      <p>Logged in</p>
-      <button onClick={() => setMyPrivateKey('')}>Log out</button>
-    </div>
-  );
-}
-```
-
-
-### Collaborative document editing
-
-Uses the `treelike-nostr` adapter to sync over [Nostr](https://nostr.com).
-
-```tsx
-import { usePublicState, useAuthors } from 'treelike-hooks';
-
-function DocumentTitle() {
-  // List of users you follow on Nostr.
-  // Alternatively, provide an array of public keys.
-  const authors =  useAuthors('follows');
-  
-  const titlePath = 'apps/canvas/documents/myDocument1/title';
-  const [docName, setDocName] = usePublicState(authors, titlePath, 'Untitled Document');
-    
-  return (
-    <div>
-      <input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Document title" />
-    </div>
-  );
-}
-```
+1. Define canonical Merkle leaf/proof format.
+2. Implement verifier module.
+3. Implement payout engine.
+4. Add replication market flow (pay-to-copy, delayed eligibility).
+5. Add metrics dashboard for latency/reliability leaderboards.

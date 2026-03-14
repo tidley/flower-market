@@ -1,5 +1,8 @@
 # Flower Market
 
+**ngit repo:** nostr://npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market  
+**ngit web:** https://gitworkshop.dev/npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market
+
 Flower Market is a retrieval-bounty marketplace for verifiable data availability.
 
 It builds on Merkle proofs and challenge-response rounds to reward storage nodes that are:

@@ -2,6 +2,33 @@
 
 This document defines the first executable blocks to move Flower Market toward deterministic settlement.
 
+## End-to-End Flower Market Flow
+
+```mermaid
+sequenceDiagram
+    participant Challenger
+    participant Relays
+    participant Responders
+    participant Verifier(ContextVM)
+    participant Payout Engine
+
+    note over Challenger,Payout Engine: Flower Market challenge + deterministic settlement
+
+    Challenger->>Relays: Publish challenge (challengeId, payoutSchedule, deadlines)
+    Relays->>Responders: Deliver challenge
+
+    Responders->>Relays: Publish commit(s)
+    Relays->>Responders: Open reveal window
+    Responders->>Relays: Publish reveal(s): proof + metadata
+
+    Relays->>Verifier(ContextVM): Deliver challenge + reveals
+    Verifier(ContextVM)->>Verifier(ContextVM): Validate proofs + rank winners deterministically
+    Verifier(ContextVM)->>Relays: Publish settlement (programHash, inputHash, outputHash)
+
+    Payout Engine->>Relays: Read settlement
+    Payout Engine->>Responders: Pay 15/10/5 sats + bonus
+```
+
 ## Block 1: Deterministic Settlement Kernel
 
 **Goal:** Given a challenge and reveal results, produce deterministic winners + payout outputs.

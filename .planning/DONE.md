@@ -20,3 +20,4 @@
 - Added executable conformance test (`conformance.test.ts`) bound to fixtures
 - Completed P3: integrated proof+deadline validation into settlement pipeline (`settleChallengeFromProofs`)
 - Added pipeline tests for invalid proof exclusion, deadline rejection, and root mismatch rejection
+- Completed P5 schema draft: `spec/marketplace-v0.1.md` (listing/offer/accept/transfer_proof/market.settlement)

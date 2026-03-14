@@ -23,3 +23,4 @@
 - Completed P5 schema draft: `spec/marketplace-v0.1.md` (listing/offer/accept/transfer_proof/market.settlement)
 - Completed P5b marketplace conformance fixtures and executable tests
 - Added marketplace runtime helpers for transfer-proof verification, eligibility state, duplicate settlement rejection
+- Completed unified spec consistency pass (P2/P3/P5) with runtime-aligned rules and fixture references

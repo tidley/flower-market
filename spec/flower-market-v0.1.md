@@ -1,7 +1,7 @@
 # Flower Market Protocol v0.1 (Draft)
 
 Status: Draft  
-Version: 0.1.1
+Version: 0.1.2
 
 ## 1. Scope
 
@@ -132,7 +132,8 @@ Rules:
 - Reveal MUST be published at or before `revealDeadline`.
 - `latencyMs` MUST be integer >= 0.
 - `proof` nodes MUST be evaluated in listed order.
-- `leafHash + proof` MUST reconstruct `expectedRoot`.
+- `expectedRoot` MUST equal challenge `merkleRoot`.
+- `leafHash + proof` MUST reconstruct challenge `merkleRoot`.
 
 ## 7.4 Settlement
 
@@ -161,17 +162,18 @@ Rules:
 ## 8. Deterministic ranking and payout
 
 1. Exclude reveals with invalid proofs.
-2. Sort valid reveals by:
+2. A reveal MUST be marked invalid if commit/reveal deadlines fail, proof fails, or expectedRoot mismatches challenge merkleRoot.
+3. Sort valid reveals by:
    1) `commitTs` ascending
    2) `revealTs` ascending
    3) `latencyMs` ascending
-3. Select top 3.
-4. Base payouts default to [15,10,5] sats unless challenge overrides.
-5. Bonus multiplier:
+4. Select top 3.
+5. Base payouts default to [15,10,5] sats unless challenge overrides.
+6. Bonus multiplier:
    - reliability >= 0.95 => 1.0x
    - reliability >= 0.90 => 0.5x
    - else => 0x
-6. `totalMsats = baseSats * 1000 + bonusMsats`.
+7. `totalMsats = baseSats * 1000 + bonusMsats`.
 
 ## 9. Security requirements
 
@@ -191,11 +193,15 @@ Minimum required vectors:
 4. wrong root -> false
 5. deterministic envelope equality for semantically identical canonical input
 6. deterministic ranking tie-break (commitTs, revealTs, latency)
+7. pipeline deadline rejection (late commit/reveal -> invalid)
+8. expectedRoot mismatch rejection
 
 Reference implementation path:
 - `packages/flower-contextvm/src/proof.test.ts`
 - `packages/flower-contextvm/src/envelope.test.ts`
 - `packages/flower-contextvm/src/settlement.test.ts`
+- `packages/flower-contextvm/src/pipeline.test.ts`
+- `packages/flower-contextvm/src/conformance.test.ts`
 
 Reference fixture path:
 - `spec/fixtures/v0.1/proof-vectors.json`

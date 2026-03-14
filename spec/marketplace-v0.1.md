@@ -1,7 +1,7 @@
 # Flower Market Marketplace Protocol v0.1 (Draft)
 
 Status: Draft  
-Version: 0.1.0
+Version: 0.1.1
 
 ## 1. Scope
 
@@ -120,7 +120,9 @@ Rules:
 
 Rules:
 - `verified` MUST be true only when transfer proof check passes.
-- `eligibility` MUST transition to `active` only after `cooldownUntil`.
+- `eligibility` MUST be `pending` when `paymentSettled=true`, `verified=true`, and `nowTs < cooldownUntil`.
+- `eligibility` MUST be `active` when `paymentSettled=true`, `verified=true`, and `nowTs >= cooldownUntil`.
+- `eligibility` MUST be `none` otherwise.
 
 ## 4. Eligibility state machine
 
@@ -138,9 +140,15 @@ Transitions:
 - Implementations MUST reject duplicate settlement for same `transferId`.
 - Implementations SHOULD support fraud proof events in v0.2.
 
-## 6. Conformance vectors (next)
+## 6. Conformance vectors
 
-Required fixtures to add:
+Implemented fixture path:
+- `spec/fixtures/v0.1/marketplace-vectors.json`
+
+Implemented runtime tests:
+- `packages/flower-contextvm/src/marketplace.test.ts`
+
+Required vectors:
 1. valid listing/offer/accept/transfer/settlement chain
 2. invalid transfer proof
 3. cooldown enforcement

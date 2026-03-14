@@ -18,3 +18,4 @@
 - Drafted P5 marketplace protocol schema with eligibility state machine and cooldown rules.
 - Implemented marketplace fixture-backed conformance tests and runtime helpers.
 - Coverage remains 100% after P5b additions.
+- Ran unified spec consistency pass and aligned protocol/marketplace docs to implemented runtime semantics.

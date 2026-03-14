@@ -1,15 +1,16 @@
 {
-  "name": "treelike-root",
+  "name": "flower-market-root",
   "private": true,
-  "homepage": "https://github.com/irislib/treelike",
-  "documentation": "https://treelike.iris.to",
+  "homepage": "https://github.com/tidley/flower-market",
+  "documentation": "https://github.com/tidley/flower-market",
   "workspaces": [
     "treelike",
     "treelike-nostr",
-    "treelike-hooks"
+    "treelike-hooks",
+    "packages/flower-contextvm"
   ],
   "scripts": {
-    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks",
+    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm",
     "docs": "typedoc",
     "lint": "eslint --ext .ts,.tsx --fix ."
   },

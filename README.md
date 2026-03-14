@@ -44,10 +44,18 @@ This repository currently contains:
 - ngit (Nostr): nostr://npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market
 - ngit web: https://gitworkshop.dev/npub1z5jf78uhd68znuwwwu926th55rzd0wy8nd9clkr03cx22mwme0jqazk56h/relay.ngit.dev/flower-market
 
+## ContextVM Blocks (started)
+
+- Spec: `design/flower-market/contextvm-v0.md`
+- Prototype package: `packages/flower-contextvm/`
+- Exported function: `settleChallenge(input, reveals)`
+
+This is the first deterministic settlement block: same input -> same ranked winners + payout output.
+
 ## Next Steps
 
-1. Define canonical Merkle leaf/proof format.
-2. Implement verifier module.
-3. Implement payout engine.
-4. Add replication market flow (pay-to-copy, delayed eligibility).
-5. Add metrics dashboard for latency/reliability leaderboards.
+1. Wire `settleChallenge` into challenge/reveal event ingestion.
+2. Define canonical Merkle leaf/proof format.
+3. Implement verifier module for full proof checks.
+4. Add payout execution adapter (LN).
+5. Add replication market flow (pay-to-copy, delayed eligibility).

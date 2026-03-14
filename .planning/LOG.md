@@ -21,3 +21,4 @@
 - Ran unified spec consistency pass and aligned protocol/marketplace docs to implemented runtime semantics.
 - Added pipeline fixture vectors and fraud vectors with executable tests.
 - Coverage remains 100% after adding P5c fraud/dispute runtime hooks.
+- Added UI/UX spec doc and minimal UI scaffold app; verified `ui:build` success.

@@ -60,10 +60,19 @@ This repository currently contains:
 
 This is the first deterministic settlement block: same input -> same ranked winners + payout output.
 
+## Minimal UI Scaffold
+
+A minimal owner/SP simulation UI is now included:
+
+- App path: `apps/flower-ui`
+- UX spec: `design/ui-ux-spec-v0.md`
+- Run locally: `npm run ui:dev`
+- Build: `npm run ui:build`
+
 ## Next Steps
 
-1. Wire `settleChallenge` into challenge/reveal event ingestion.
-2. Define canonical Merkle leaf/proof format.
-3. Implement verifier module for full proof checks.
-4. Add payout execution adapter (LN).
-5. Add replication market flow (pay-to-copy, delayed eligibility).
+1. Add relay event ingestion/publishing layer for real challenge rounds.
+2. Add payout execution adapter (LN).
+3. Connect UI forms to live relay + blossom actions.
+4. Extend fraud/dispute workflow with resolver quorum semantics.
+5. Add demo walkthrough script (challenge -> settlement -> marketplace transfer).

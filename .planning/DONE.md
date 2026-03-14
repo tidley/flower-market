@@ -26,3 +26,5 @@
 - Completed unified spec consistency pass (P2/P3/P5) with runtime-aligned rules and fixture references
 - Added pipeline fixture vectors (`pipeline-vectors.json`) and fixture-backed conformance test coverage
 - Completed P5c fraud/dispute hooks (fraud proof validation + eligibility rollback semantics)
+- Added UI/UX spec (`design/ui-ux-spec-v0.md`)
+- Added minimal UI scaffold app (`apps/flower-ui`) for Owner/SP simulation

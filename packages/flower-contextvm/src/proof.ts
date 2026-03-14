@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha256';
 
 export type ProofPosition = 'left' | 'right';
 
@@ -8,12 +9,12 @@ export interface MerkleProofNode {
 }
 
 function sha256Hex(data: Uint8Array): string {
-  return createHash('sha256').update(data).digest('hex');
+  return bytesToHex(sha256(data));
 }
 
-function hexToBytes(hex: string): Uint8Array {
+function safeHexToBytes(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) throw new Error('Invalid hex length');
-  return Uint8Array.from(Buffer.from(hex, 'hex'));
+  return hexToBytes(hex);
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
@@ -29,8 +30,8 @@ export function hashLeaf(value: string | Uint8Array): string {
 }
 
 export function hashPair(leftHex: string, rightHex: string): string {
-  const left = hexToBytes(leftHex);
-  const right = hexToBytes(rightHex);
+  const left = safeHexToBytes(leftHex);
+  const right = safeHexToBytes(rightHex);
   return sha256Hex(concat(left, right));
 }
 

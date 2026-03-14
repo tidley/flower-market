@@ -12,6 +12,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "license": "MIT",
+  "dependencies": {
+    "@noble/hashes": "^1.5.0"
+  },
   "files": [
     "src",
     "dist"

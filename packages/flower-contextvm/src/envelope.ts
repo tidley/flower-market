@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { bytesToHex } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha256';
 
 export interface SettlementEnvelope {
   programHash: string;
@@ -22,7 +23,7 @@ function sortValue(value: unknown): unknown {
 }
 
 function sha256Hex(input: string): string {
-  return createHash('sha256').update(input).digest('hex');
+  return bytesToHex(sha256(new TextEncoder().encode(input)));
 }
 
 export function buildSettlementEnvelope(

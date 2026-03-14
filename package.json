@@ -7,12 +7,15 @@
     "treelike",
     "treelike-nostr",
     "treelike-hooks",
-    "packages/flower-contextvm"
+    "packages/flower-contextvm",
+    "apps/flower-ui"
   ],
   "scripts": {
-    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm",
+    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm && npm run build --workspace=flower-ui",
     "docs": "typedoc",
-    "lint": "eslint --ext .ts,.tsx --fix ."
+    "lint": "eslint --ext .ts,.tsx --fix .",
+    "ui:dev": "npm run dev --workspace=flower-ui",
+    "ui:build": "npm run build --workspace=flower-ui"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.1.0",
@@ -22,6 +25,7 @@
     "@typescript-eslint/eslint-plugin": "^7.1.1",
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^1.6.1",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.3",

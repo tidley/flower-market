@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Marketplace conformance vectors"
+  },
+  "validChain": {
+    "listing": {
+      "type": "market.listing",
+      "listingId": "lst_001",
+      "seller": "npub_seller",
+      "contentRef": "blossom:abc123",
+      "merkleRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc",
+      "priceSats": 5,
+      "terms": { "deliveryDeadline": 1710003600, "cooldownSeconds": 3600 }
+    },
+    "offer": {
+      "type": "market.offer",
+      "offerId": "off_001",
+      "listingId": "lst_001",
+      "buyer": "npub_buyer",
+      "paymentRef": "ln-invoice-001",
+      "offerTs": 1710000100
+    },
+    "accept": {
+      "type": "market.accept",
+      "offerId": "off_001",
+      "listingId": "lst_001",
+      "seller": "npub_seller",
+      "acceptTs": 1710000200,
+      "transferId": "tr_001"
+    },
+    "transferProof": {
+      "type": "market.transfer_proof",
+      "transferId": "tr_001",
+      "listingId": "lst_001",
+      "seller": "npub_seller",
+      "buyer": "npub_buyer",
+      "contentRef": "blossom:abc123",
+      "merkleRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc",
+      "sampleLeafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+      "sampleProof": [
+        { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "right" },
+        { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+      ],
+      "proofTs": 1710000300
+    },
+    "settlement": {
+      "type": "market.settlement",
+      "transferId": "tr_001",
+      "listingId": "lst_001",
+      "offerId": "off_001",
+      "seller": "npub_seller",
+      "buyer": "npub_buyer",
+      "priceSats": 5,
+      "paymentSettled": true,
+      "verified": true,
+      "cooldownUntil": 1710003900,
+      "eligibility": "pending"
+    }
+  },
+  "invalidTransferProof": {
+    "sampleLeafHash": "8a1cee436cbac1489a1883c9d886fcfc46f302c55ed4106ae31729e4f4eb9041",
+    "sampleProof": [
+      { "hash": "10dacdccfe877dc064d57442e6fa7a4e3085dc94e11a29819c2290fc3d788724", "position": "left" },
+      { "hash": "4723df9b2662cc29752873901fe455a877ed4b6d62dfc83539be19ca2005895b", "position": "left" }
+    ],
+    "merkleRoot": "6d4202e491db6f2cd035eefb749748adc8ecf785504869b2d04331b34b1498dc"
+  },
+  "cooldown": {
+    "cooldownUntil": 1710003900,
+    "beforeTs": 1710003899,
+    "afterTs": 1710003901
+  },
+  "duplicateSettlement": {
+    "transferId": "tr_dup_001"
+  }
+}

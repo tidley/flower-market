@@ -2,12 +2,11 @@
 
 ## In progress
 
-1. **Marketplace conformance fixtures (P5b)**
-   - listing / offer / accept / transfer-proof / settlement vectors
-   - cooldown + duplicate settlement rejection vectors
+1. **Spec consistency pass (P2/P3/P5 unified)**
+   - ensure `flower-market-v0.1.md` and `marketplace-v0.1.md` align with runtime behavior
 
-2. **Spec review pass (post-P3 integration)**
-   - final consistency pass between runtime tests and v0.1 text
-
-3. **Pipeline conformance fixture extension**
+2. **Pipeline conformance fixture extension**
    - add pipeline-level vectors including deadline failures
+
+3. **Marketplace fraud/dispute hooks (P5c)**
+   - draft fraud-proof event schema and rollback semantics

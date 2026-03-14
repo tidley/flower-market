@@ -1,4 +1,6 @@
 export { buildSettlementEnvelope, stableStringify } from './envelope.ts';
+export { deriveEligibilityState, rejectDuplicateSettlement, verifyTransferProof } from './marketplace.ts';
+export type { EligibilityState, TransferProofInput } from './marketplace.ts';
 export { settleChallengeFromProofs } from './pipeline.ts';
 export type { ChallengeExecutionInput, ProofRevealInput } from './pipeline.ts';
 export { hashLeaf, hashPair, verifyMerkleProof } from './proof.ts';

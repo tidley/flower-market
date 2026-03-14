@@ -16,3 +16,5 @@
 - Implemented P3 pipeline integration where validity is computed internally from proofs and deadlines.
 - Verified P3 with dedicated tests; coverage remains 100%.
 - Drafted P5 marketplace protocol schema with eligibility state machine and cooldown rules.
+- Implemented marketplace fixture-backed conformance tests and runtime helpers.
+- Coverage remains 100% after P5b additions.

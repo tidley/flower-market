@@ -43,6 +43,7 @@ export default class NDKAdapter implements Adapter {
         );
       },
     );
+    unsubObj.fn = unsubscribe;
     return () => unsubscribe();
   }
 
@@ -116,6 +117,7 @@ export default class NDKAdapter implements Adapter {
         }
       },
     );
+    unsubObj.fn = unsubscribe;
     return () => unsubscribe();
   }
 }

@@ -1,10 +1,3 @@
-import 'fake-indexeddb/auto';
-
-import { bytesToHex } from '@noble/hashes/utils';
-import NDK, { NDKEvent, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk';
-import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie';
-import { waitFor } from '@testing-library/dom';
-import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Callback, Unsubscribe } from '../../treelike/src';
@@ -13,97 +6,145 @@ import { NostrEvent, NostrFilter } from './types';
 
 describe('NDKAdapter', () => {
   let adapter: NDKAdapter;
-  let i = 0;
+  let publish: ReturnType<typeof vi.fn>;
+  let subscribe: ReturnType<typeof vi.fn>;
+  let onEvent: ((event: NostrEvent) => void) | undefined;
+  let author: PublicKey;
+  let unsubscribed = false;
 
   beforeEach(() => {
-    const dbName = `treelike-nostr-${i++}`;
-    const dexieAdapter = new NDKCacheAdapterDexie({ dbName });
-    const ndk = new NDK({
-      explicitRelayUrls: [],
-      cacheAdapter: dexieAdapter,
+    unsubscribed = false;
+    author = new PublicKey(
+      'npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk',
+    );
+    publish = vi.fn();
+    subscribe = vi.fn((filter: NostrFilter, handler: (event: NostrEvent) => void) => {
+      onEvent = handler;
+      return () => {
+        unsubscribed = true;
+      };
     });
-    ndk.connect();
 
-    const sk = generateSecretKey(); // `sk` is a Uint8Array
-    const pk = getPublicKey(sk); // `pk` is a hex string
-    const privateKeyHex = bytesToHex(sk);
-    console.log('privateKeyHex:', privateKeyHex);
-    const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex);
-    ndk.signer = privateKeySigner;
-    const publish = (e: Partial<NostrEvent>) => {
-      new NDKEvent(ndk, e as NostrEvent).publish();
-      return;
-    };
-    const subscribe = (filter: NostrFilter, onEvent: (e: NostrEvent) => void) => {
-      const sub = ndk.subscribe(filter);
-      sub.on('event', (event) => {
-        onEvent(event.rawEvent() as NostrEvent);
-      });
-      return () => sub.stop();
-    };
-    adapter = new NDKAdapter(publish, subscribe, [new PublicKey(pk)]);
+    adapter = new NDKAdapter(publish, subscribe, [author]);
   });
 
   describe('get()', () => {
-    it('should retrieve the stored value for a given path', async () => {
+    it('subscribes for a path and forwards matching values', () => {
       const mockCallback: Callback = vi.fn();
-      await adapter.set('somePath', { value: 'someValue', updatedAt: Date.now() });
       const unsubscribe: Unsubscribe = adapter.get('somePath', mockCallback);
 
-      await waitFor(() => {
-        expect(mockCallback).toHaveBeenCalledWith(
-          'someValue',
-          'somePath',
-          expect.any(Number),
-          expect.any(Function),
-        );
+      expect(subscribe).toHaveBeenCalledWith(
+        {
+          authors: [author.toString()],
+          kinds: [30078],
+          '#d': ['somePath'],
+        },
+        expect.any(Function),
+      );
+
+      onEvent?.({
+        id: 'event-id',
+        pubkey: author.toString(),
+        created_at: 123,
+        kind: 30078,
+        tags: [['d', 'somePath'], ['f', '']],
+        content: JSON.stringify('someValue'),
+        sig: 'sig',
       });
+
+      expect(mockCallback).toHaveBeenCalledWith(
+        'someValue',
+        `${author.npub}somePath`,
+        123000,
+        expect.any(Function),
+      );
+
+      const callbackUnsubscribe = vi.mocked(mockCallback).mock.calls[0]?.[3];
+      expect(typeof callbackUnsubscribe).toBe('function');
+      callbackUnsubscribe?.();
+      expect(unsubscribed).toBe(true);
+
       unsubscribe();
+      expect(unsubscribed).toBe(true);
     });
   });
 
   describe('set()', () => {
-    it('should set the value at the given path', async () => {
-      await adapter.set('anotherPath', { value: 'newValue', updatedAt: Date.now() });
-      const mockCallback: Callback = vi.fn();
-      adapter.get('anotherPath', mockCallback);
+    it('publishes a replaceable nostr event with path metadata', async () => {
+      await adapter.set('anotherPath', { value: 'newValue', updatedAt: 456000, expiresAt: 789000 });
 
-      await waitFor(() => {
-        expect(mockCallback).toHaveBeenCalledWith(
-          'newValue',
-          'anotherPath',
-          expect.any(Number),
-          expect.any(Function),
-        );
+      expect(publish).toHaveBeenCalledWith({
+        kind: 30078,
+        content: JSON.stringify('newValue'),
+        created_at: 456,
+        tags: [
+          ['d', 'anotherPath'],
+          ['f', ''],
+          ['expiration', '789'],
+        ],
       });
     });
   });
 
   describe('list()', () => {
-    it('should list child nodes under the given path', async () => {
+    it('subscribes for direct children and ignores deeper descendants', () => {
       const mockCallback: Callback = vi.fn();
-      await adapter.set('parent/child1', { value: 'childValue1', updatedAt: Date.now() });
-      await adapter.set('parent/child2', { value: 'childValue2', updatedAt: Date.now() });
-
       const unsubscribe: Unsubscribe = adapter.list('parent', mockCallback);
 
-      await waitFor(() => {
-        expect(mockCallback).toHaveBeenCalledWith(
-          'childValue1',
-          'parent/child1',
-          expect.any(Number),
-          expect.any(Function),
-        );
+      expect(subscribe).toHaveBeenCalledWith(
+        {
+          authors: [author.toString()],
+          kinds: [30078],
+        },
+        expect.any(Function),
+      );
 
-        expect(mockCallback).toHaveBeenCalledWith(
-          'childValue2',
-          'parent/child2',
-          expect.any(Number),
-          expect.any(Function),
-        );
+      onEvent?.({
+        id: 'child-1',
+        pubkey: author.toString(),
+        created_at: 100,
+        kind: 30078,
+        tags: [['d', 'parent/child1'], ['f', 'parent']],
+        content: JSON.stringify('childValue1'),
+        sig: 'sig',
+      });
+      onEvent?.({
+        id: 'child-2',
+        pubkey: author.toString(),
+        created_at: 101,
+        kind: 30078,
+        tags: [['d', 'parent/child2'], ['f', 'parent']],
+        content: JSON.stringify('childValue2'),
+        sig: 'sig',
+      });
+      onEvent?.({
+        id: 'grandchild',
+        pubkey: author.toString(),
+        created_at: 102,
+        kind: 30078,
+        tags: [['d', 'parent/child1/grandchild'], ['f', 'parent/child1']],
+        content: JSON.stringify('ignored'),
+        sig: 'sig',
       });
 
+      expect(mockCallback).toHaveBeenCalledTimes(2);
+      expect(mockCallback).toHaveBeenNthCalledWith(
+        1,
+        'childValue1',
+        `${author.npub}parent/child1`,
+        100000,
+        expect.any(Function),
+      );
+      expect(mockCallback).toHaveBeenNthCalledWith(
+        2,
+        'childValue2',
+        `${author.npub}parent/child2`,
+        101000,
+        expect.any(Function),
+      );
+
       unsubscribe();
+      expect(unsubscribed).toBe(true);
     });
   });
 });

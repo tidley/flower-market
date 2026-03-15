@@ -11,6 +11,7 @@
     "apps/flower-ui"
   ],
   "scripts": {
+    "test": "npm test --workspace=treelike -- --run && npm test --workspace=treelike-nostr -- --run && npm test --workspace=treelike-hooks -- --run --passWithNoTests && npm test --workspace=packages/flower-contextvm",
     "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm && npm run build --workspace=flower-ui",
     "docs": "typedoc",
     "lint": "eslint --ext .ts,.tsx --fix .",

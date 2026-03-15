@@ -1,0 +1,8 @@
+flower.example.com {
+  root * /opt/flower-market/apps/flower-ui/dist
+  file_server
+
+  handle /api/* {
+    reverse_proxy 127.0.0.1:8787
+  }
+}

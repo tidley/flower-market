@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import fraudVectors from '../../../spec/fixtures/v0.1/fraud-vectors.json';
 import vectors from '../../../spec/fixtures/v0.1/marketplace-vectors.json';
+import type { MerkleProofNode } from './proof.ts';
 import {
   applyFraudRollback,
   deriveEligibilityState,
@@ -16,7 +17,7 @@ describe('marketplace conformance', () => {
     expect(
       verifyTransferProof({
         sampleLeafHash: v.sampleLeafHash,
-        sampleProof: v.sampleProof,
+        sampleProof: v.sampleProof as MerkleProofNode[],
         merkleRoot: v.merkleRoot,
       }),
     ).toBe(true);
@@ -27,7 +28,7 @@ describe('marketplace conformance', () => {
     expect(
       verifyTransferProof({
         sampleLeafHash: v.sampleLeafHash,
-        sampleProof: v.sampleProof,
+        sampleProof: v.sampleProof as MerkleProofNode[],
         merkleRoot: v.merkleRoot,
       }),
     ).toBe(false);
@@ -58,7 +59,7 @@ describe('marketplace conformance', () => {
     const f = fraudVectors.validFraudProof.evidence;
     const validFraud = validateFraudProof({
       sampleLeafHash: f.sampleLeafHash,
-      sampleProof: f.sampleProof,
+      sampleProof: f.sampleProof as MerkleProofNode[],
       merkleRoot: f.merkleRoot,
     });
 
@@ -71,7 +72,7 @@ describe('marketplace conformance', () => {
     const v = vectors.validChain.transferProof;
     const validFraud = validateFraudProof({
       sampleLeafHash: v.sampleLeafHash,
-      sampleProof: v.sampleProof,
+      sampleProof: v.sampleProof as MerkleProofNode[],
       merkleRoot: v.merkleRoot,
     });
 

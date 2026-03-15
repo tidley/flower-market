@@ -1,0 +1,24 @@
+{
+  "name": "flower-runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Live relay runtime and autonomous demo loop for Flower Market",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "demo": "node --experimental-strip-types src/cli.ts",
+    "daemon": "node --experimental-strip-types src/daemon-cli.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@noble/hashes": "^1.5.0",
+    "nostr-tools": "^2.7.2"
+  },
+  "files": [
+    "src",
+    "dist"
+  ]
+}

@@ -8,13 +8,16 @@
     "treelike-nostr",
     "treelike-hooks",
     "packages/flower-contextvm",
+    "packages/flower-runtime",
     "apps/flower-ui"
   ],
   "scripts": {
-    "test": "npm test --workspace=treelike -- --run && npm test --workspace=treelike-nostr -- --run && npm test --workspace=treelike-hooks -- --run --passWithNoTests && npm test --workspace=packages/flower-contextvm",
-    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm && npm run build --workspace=flower-ui",
+    "test": "npm test --workspace=treelike -- --run && npm test --workspace=treelike-nostr -- --run && npm test --workspace=treelike-hooks -- --run --passWithNoTests && npm test --workspace=packages/flower-contextvm && npm test --workspace=flower-runtime",
+    "build": "npm run build --workspace=treelike && npm run build --workspace=treelike-nostr && npm run build --workspace=treelike-hooks && npm run build --workspace=flower-contextvm && npm run build --workspace=flower-runtime && npm run build --workspace=flower-ui",
     "docs": "typedoc",
     "lint": "eslint --ext .ts,.tsx --fix .",
+    "runtime:daemon": "npm run daemon --workspace=flower-runtime --",
+    "runtime:demo": "npm run demo --workspace=flower-runtime --",
     "ui:dev": "npm run dev --workspace=flower-ui",
     "ui:build": "npm run build --workspace=flower-ui"
   },

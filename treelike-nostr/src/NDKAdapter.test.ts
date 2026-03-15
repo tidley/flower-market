@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Callback, Unsubscribe } from '../../treelike/src';
 import { NDKAdapter, PublicKey } from '.';
-import { NostrEvent, NostrFilter } from './types';
+import { NostrEvent, NostrFilter, NostrPublish, NostrSubscribe } from './types';
 
 describe('NDKAdapter', () => {
   let adapter: NDKAdapter;
-  let publish: ReturnType<typeof vi.fn>;
-  let subscribe: ReturnType<typeof vi.fn>;
+  let publish: NostrPublish;
+  let publishMock: ReturnType<typeof vi.fn>;
+  let subscribe: NostrSubscribe;
+  let subscribeCalls = 0;
+  let capturedFilter: NostrFilter | undefined;
   let onEvent: ((event: NostrEvent) => void) | undefined;
   let author: PublicKey;
   let unsubscribed = false;
@@ -17,13 +20,17 @@ describe('NDKAdapter', () => {
     author = new PublicKey(
       'npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk',
     );
-    publish = vi.fn();
-    subscribe = vi.fn((filter: NostrFilter, handler: (event: NostrEvent) => void) => {
+    publishMock = vi.fn();
+    publish = publishMock;
+    subscribeCalls = 0;
+    subscribe = (filter, handler) => {
+      subscribeCalls += 1;
+      capturedFilter = filter;
       onEvent = handler;
       return () => {
         unsubscribed = true;
       };
-    });
+    };
 
     adapter = new NDKAdapter(publish, subscribe, [author]);
   });
@@ -33,13 +40,13 @@ describe('NDKAdapter', () => {
       const mockCallback: Callback = vi.fn();
       const unsubscribe: Unsubscribe = adapter.get('somePath', mockCallback);
 
-      expect(subscribe).toHaveBeenCalledWith(
+      expect(subscribeCalls).toBe(1);
+      expect(capturedFilter).toEqual(
         {
           authors: [author.toString()],
           kinds: [30078],
           '#d': ['somePath'],
         },
-        expect.any(Function),
       );
 
       onEvent?.({
@@ -73,7 +80,7 @@ describe('NDKAdapter', () => {
     it('publishes a replaceable nostr event with path metadata', async () => {
       await adapter.set('anotherPath', { value: 'newValue', updatedAt: 456000, expiresAt: 789000 });
 
-      expect(publish).toHaveBeenCalledWith({
+      expect(publishMock).toHaveBeenCalledWith({
         kind: 30078,
         content: JSON.stringify('newValue'),
         created_at: 456,
@@ -91,13 +98,11 @@ describe('NDKAdapter', () => {
       const mockCallback: Callback = vi.fn();
       const unsubscribe: Unsubscribe = adapter.list('parent', mockCallback);
 
-      expect(subscribe).toHaveBeenCalledWith(
-        {
-          authors: [author.toString()],
-          kinds: [30078],
-        },
-        expect.any(Function),
-      );
+      expect(subscribeCalls).toBe(1);
+      expect(capturedFilter).toEqual({
+        authors: [author.toString()],
+        kinds: [30078],
+      });
 
       onEvent?.({
         id: 'child-1',

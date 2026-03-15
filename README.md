@@ -69,10 +69,94 @@ A minimal owner/SP simulation UI is now included:
 - Run locally: `npm run ui:dev`
 - Build: `npm run ui:build`
 
+## Autonomous Runtime Demo
+
+A first live runtime scaffold is now included for autonomous challenge rounds over Nostr-style events:
+
+- Runtime package: `packages/flower-runtime`
+- Root test command: `npm test`
+- Local autonomous demo: `npm run runtime:demo -- --blob-id demo_blob --content "relay demo payload"`
+- Long-running daemon: `npm run runtime:daemon`
+
+What the demo does:
+
+1. Starts a dummy Blossom HTTP server with a deterministic blob fixture.
+2. Creates owner, responder, and settler identities.
+3. Publishes `challenge`, `commit`, `reveal`, and `settlement` events through the runtime transport.
+4. Computes deterministic settlement hashes and prints a replayable summary.
+
+To target real relays instead of the in-memory transport, pass one or more relay URLs:
+
+```bash
+npm run runtime:demo -- \
+  --relay wss://relay.damus.io \
+  --relay wss://nos.lol \
+  --blob-id demo_blob \
+  --content "relay demo payload"
+```
+
+Current limitation:
+
+- The runtime publishes to real relays when `--relay` is provided, but still uses the local dummy Blossom server for content/proof fixtures.
+- LN payout execution is still not implemented.
+
+## Owner / Provider Web UI
+
+The UI in `apps/flower-ui` now talks to the runtime daemon over `/api` and exposes simple owner/SP flows:
+
+- Owner side:
+  - upload text/file payloads into the dummy Blossom service
+  - configure payout schedule + deadlines
+  - publish retrieval challenges
+  - publish marketplace listings
+  - accept offers and publish transfer proofs
+- Provider side:
+  - see open challenges
+  - publish commit + reveal responses
+  - place offers on listings
+  - watch eligibility and transfer settlement
+
+Run it locally with two terminals:
+
+```bash
+# terminal 1
+npm run runtime:daemon
+
+# terminal 2
+npm run ui:dev
+```
+
+To target real relays from the daemon:
+
+```bash
+npm run runtime:daemon -- \
+  --relay wss://relay.damus.io \
+  --relay wss://nos.lol
+```
+
+The Vite dev server proxies `/api` to `http://127.0.0.1:8787`.
+
+## VPS Deployment
+
+Minimal VPS deployment files are in `deploy/flower-runtime/`:
+
+- `flower-runtime.service`
+- `flower-runtime.env.example`
+- `Caddyfile`
+
+Expected shape:
+
+1. Clone repo to `/opt/flower-market`
+2. Install dependencies
+3. Build UI with `npm run ui:build`
+4. Copy `deploy/flower-runtime/flower-runtime.env.example` to `deploy/flower-runtime/flower-runtime.env`
+5. Install the systemd unit and start it
+6. Use Caddy to serve `apps/flower-ui/dist` and reverse proxy `/api` to the daemon
+
 ## Next Steps
 
-1. Add relay event ingestion/publishing layer for real challenge rounds.
-2. Add payout execution adapter (LN).
-3. Connect UI forms to live relay + blossom actions.
+1. Replace polling with long-lived relay subscriptions for lower-latency settlement.
+2. Add LN payout execution adapter and signed payment receipts.
+3. Persist daemon state and Blossom fixtures to disk.
 4. Extend fraud/dispute workflow with resolver quorum semantics.
-5. Add demo walkthrough script (challenge -> settlement -> marketplace transfer).
+5. Split provider automation into a separately deployable worker process.

@@ -1,0 +1,139 @@
+import { finalizeEvent, SimplePool } from 'nostr-tools';
+
+import { stableStringify } from '../../flower-contextvm/src/index.ts';
+import { FLOWER_EVENT_KINDS } from './types.ts';
+import type {
+  FlowerPayload,
+  PublishedFlowerEvent,
+  RelayFilter,
+  RuntimeSigner,
+} from './types.ts';
+
+function kindForPayload(payload: FlowerPayload): number {
+  switch (payload.type) {
+    case 'challenge':
+      return FLOWER_EVENT_KINDS.challenge;
+    case 'commit':
+      return FLOWER_EVENT_KINDS.commit;
+    case 'reveal':
+      return FLOWER_EVENT_KINDS.reveal;
+    case 'settlement':
+      return FLOWER_EVENT_KINDS.settlement;
+    case 'market.listing':
+      return FLOWER_EVENT_KINDS.marketListing;
+    case 'market.offer':
+      return FLOWER_EVENT_KINDS.marketOffer;
+    case 'market.accept':
+      return FLOWER_EVENT_KINDS.marketAccept;
+    case 'market.transfer_proof':
+      return FLOWER_EVENT_KINDS.marketTransferProof;
+    case 'market.settlement':
+      return FLOWER_EVENT_KINDS.marketSettlement;
+  }
+}
+
+function matchesFilter(event: PublishedFlowerEvent, filter: RelayFilter): boolean {
+  if (filter.kinds && !filter.kinds.includes(event.kind)) return false;
+  if (filter.authors && !filter.authors.includes(event.pubkey)) return false;
+  if (filter.type && event.payload.type !== filter.type) return false;
+
+  if ('challengeId' in event.payload && filter.challengeId && event.payload.challengeId !== filter.challengeId) {
+    return false;
+  }
+
+  return true;
+}
+
+function encodeEvent<T extends FlowerPayload>(
+  signer: RuntimeSigner,
+  payload: T,
+  now = Math.floor(Date.now() / 1000),
+) {
+  const tags = [['t', 'flower-market'], ['f', payload.type]];
+  if ('challengeId' in payload) {
+    tags.push(['c', payload.challengeId]);
+  }
+
+  return finalizeEvent(
+    {
+      kind: kindForPayload(payload),
+      created_at: now,
+      tags,
+      content: stableStringify(payload),
+    },
+    signer.secretKey,
+  );
+}
+
+function decodeEvent(raw: {
+  id: string;
+  kind: number;
+  pubkey: string;
+  created_at: number;
+  content: string;
+}): PublishedFlowerEvent {
+  const payload = JSON.parse(raw.content) as FlowerPayload;
+  return {
+    id: raw.id,
+    kind: raw.kind,
+    pubkey: raw.pubkey,
+    createdAt: raw.created_at,
+    payload,
+    raw,
+  };
+}
+
+export interface RelayTransport {
+  publish<T extends FlowerPayload>(signer: RuntimeSigner, payload: T): Promise<PublishedFlowerEvent<T>>;
+  list(filter?: RelayFilter): Promise<PublishedFlowerEvent[]>;
+  close(): Promise<void>;
+}
+
+export class MemoryRelayTransport implements RelayTransport {
+  private events: PublishedFlowerEvent[] = [];
+
+  async publish<T extends FlowerPayload>(signer: RuntimeSigner, payload: T): Promise<PublishedFlowerEvent<T>> {
+    const raw = encodeEvent(signer, payload);
+    const decoded = decodeEvent(raw) as PublishedFlowerEvent<T>;
+    this.events.push(decoded);
+    return decoded;
+  }
+
+  async list(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
+    return this.events.filter((event) => matchesFilter(event, filter));
+  }
+
+  async close(): Promise<void> {}
+}
+
+export class NostrRelayTransport implements RelayTransport {
+  private pool = new SimplePool();
+  private relays: string[];
+  private maxWaitMs: number;
+
+  constructor(relays: string[], maxWaitMs = 1500) {
+    this.relays = relays;
+    this.maxWaitMs = maxWaitMs;
+  }
+
+  async publish<T extends FlowerPayload>(signer: RuntimeSigner, payload: T): Promise<PublishedFlowerEvent<T>> {
+    const raw = encodeEvent(signer, payload);
+    const publishResults = this.pool.publish(this.relays, raw);
+    await Promise.allSettled(publishResults);
+    return decodeEvent(raw) as PublishedFlowerEvent<T>;
+  }
+
+  async list(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
+    const kinds = filter.kinds && filter.kinds.length > 0 ? filter.kinds : Object.values(FLOWER_EVENT_KINDS);
+    const events = await this.pool.querySync(
+      this.relays,
+      { kinds, limit: 200 },
+      { maxWait: this.maxWaitMs },
+    );
+    return events.map(decodeEvent).filter((event) => matchesFilter(event, filter));
+  }
+
+  async close(): Promise<void> {
+    this.pool.close(this.relays);
+  }
+}

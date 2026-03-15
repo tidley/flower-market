@@ -1,0 +1,17 @@
+[Unit]
+Description=Flower Market runtime daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/flower-market
+EnvironmentFile=/opt/flower-market/deploy/flower-runtime/flower-runtime.env
+ExecStart=/usr/bin/env npm run runtime:daemon -- --relay ${FLOWER_RELAY_1} --relay ${FLOWER_RELAY_2}
+Restart=always
+RestartSec=5
+User=flower
+Group=flower
+
+[Install]
+WantedBy=multi-user.target

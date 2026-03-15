@@ -9,8 +9,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "demo": "node --experimental-strip-types src/cli.ts",
-    "daemon": "node --experimental-strip-types src/daemon-cli.ts"
+    "demo": "tsx src/cli.ts",
+    "daemon": "tsx src/daemon-cli.ts"
   },
   "license": "MIT",
   "dependencies": {

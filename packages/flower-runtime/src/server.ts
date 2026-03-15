@@ -25,6 +25,7 @@ export interface FlowerDaemonServerHandle {
 export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): Promise<FlowerDaemonServerHandle> {
   const daemon = new FlowerDaemon(config);
   await daemon.start(config.blossomPort ?? 0);
+  const requestedPort = config.httpPort ?? 8787;
 
   const server = createServer(async (request, response) => {
     try {
@@ -104,18 +105,13 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
     }
   });
 
-  const port = await new Promise<number>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(config.httpPort ?? 8787, '127.0.0.1', () => {
-      server.off('error', reject);
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        reject(new Error('Failed to start daemon server'));
-        return;
-      }
-      resolve(address.port);
-    });
-  });
+  let port: number;
+  try {
+    port = await listenOnAvailablePort(server, requestedPort);
+  } catch (error) {
+    await daemon.stop();
+    throw error;
+  }
 
   return {
     daemon,
@@ -133,4 +129,38 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
       await daemon.stop();
     },
   };
+}
+
+async function listenOnAvailablePort(server: ReturnType<typeof createServer>, requestedPort: number): Promise<number> {
+  for (let port = requestedPort; port <= 65_535; port += 1) {
+    try {
+      return await new Promise<number>((resolve, reject) => {
+        const onError = (error: Error) => {
+          server.off('listening', onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          server.off('error', onError);
+          const address = server.address();
+          if (!address || typeof address === 'string') {
+            reject(new Error('Failed to start daemon server'));
+            return;
+          }
+          resolve(address.port);
+        };
+
+        server.once('error', onError);
+        server.once('listening', onListening);
+        server.listen(port, '127.0.0.1');
+      });
+    } catch (error) {
+      const code = typeof error === 'object' && error && 'code' in error ? (error as { code?: string }).code : undefined;
+      if (code === 'EADDRINUSE') {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`No available TCP port found on 127.0.0.1 starting at ${requestedPort}`);
 }

@@ -33,6 +33,7 @@ function parseBlossomBlobId(contentRef: string): string {
 
 export interface FlowerDaemonConfig {
   relayUrls?: string[];
+  forceKind1?: boolean;
   syncIntervalMs?: number;
   httpPort?: number;
   blossomPort?: number;
@@ -66,7 +67,7 @@ export class FlowerDaemon {
     this.settler = createRuntimeSigner(config.settlerSecretKeyHex);
     this.relayUrls = config.relayUrls ?? [];
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
-    this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls) : new MemoryRelayTransport();
+    this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls, 1500, config.forceKind1 ?? true) : new MemoryRelayTransport();
     this.payoutAdapter = new EcashPayoutAdapter({ mintUrls: config.mintUrls ?? ['https://mint.example'] });
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;

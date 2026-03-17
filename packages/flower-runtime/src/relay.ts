@@ -2,14 +2,10 @@ import { finalizeEvent, SimplePool } from 'nostr-tools';
 
 import { stableStringify } from '../../flower-contextvm/src/index.ts';
 import { FLOWER_EVENT_KINDS } from './types.ts';
-import type {
-  FlowerPayload,
-  PublishedFlowerEvent,
-  RelayFilter,
-  RuntimeSigner,
-} from './types.ts';
+import type { FlowerPayload, PublishedFlowerEvent, RelayFilter, RuntimeSigner } from './types.ts';
 
-function kindForPayload(payload: FlowerPayload): number {
+function kindForPayload(payload: FlowerPayload, forceKind1 = false): number {
+  if (forceKind1) return 1;
   switch (payload.type) {
     case 'challenge':
       return FLOWER_EVENT_KINDS.challenge;
@@ -48,6 +44,7 @@ function encodeEvent<T extends FlowerPayload>(
   signer: RuntimeSigner,
   payload: T,
   now = Math.floor(Date.now() / 1000),
+  forceKind1 = false,
 ) {
   const tags = [['t', 'flower-market'], ['f', payload.type]];
   if ('challengeId' in payload) {
@@ -56,7 +53,7 @@ function encodeEvent<T extends FlowerPayload>(
 
   return finalizeEvent(
     {
-      kind: kindForPayload(payload),
+      kind: kindForPayload(payload, forceKind1),
       created_at: now,
       tags,
       content: stableStringify(payload),
@@ -110,26 +107,24 @@ export class NostrRelayTransport implements RelayTransport {
   private pool = new SimplePool();
   private relays: string[];
   private maxWaitMs: number;
+  private forceKind1: boolean;
 
-  constructor(relays: string[], maxWaitMs = 1500) {
+  constructor(relays: string[], maxWaitMs = 1500, forceKind1 = false) {
     this.relays = relays;
     this.maxWaitMs = maxWaitMs;
+    this.forceKind1 = forceKind1;
   }
 
   async publish<T extends FlowerPayload>(signer: RuntimeSigner, payload: T): Promise<PublishedFlowerEvent<T>> {
-    const raw = encodeEvent(signer, payload);
+    const raw = encodeEvent(signer, payload, Math.floor(Date.now() / 1000), this.forceKind1);
     const publishResults = this.pool.publish(this.relays, raw);
     await Promise.allSettled(publishResults);
     return decodeEvent(raw) as PublishedFlowerEvent<T>;
   }
 
   async list(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
-    const kinds = filter.kinds && filter.kinds.length > 0 ? filter.kinds : Object.values(FLOWER_EVENT_KINDS);
-    const events = await this.pool.querySync(
-      this.relays,
-      { kinds, limit: 200 },
-      { maxWait: this.maxWaitMs },
-    );
+    const kinds = filter.kinds && filter.kinds.length > 0 ? filter.kinds : (this.forceKind1 ? [1] : Object.values(FLOWER_EVENT_KINDS));
+    const events = await this.pool.querySync(this.relays, { kinds, limit: 200 }, { maxWait: this.maxWaitMs });
     return events.map(decodeEvent).filter((event) => matchesFilter(event, filter));
   }
 

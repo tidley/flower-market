@@ -23,9 +23,11 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
   const relayUrls = wantsMemoryMode(argv)
     ? []
     : (cliRelays.length > 0 ? cliRelays : (envRelays && envRelays.length > 0 ? envRelays : DEFAULT_RELAYS));
+  const forceKind1 = process.env.FLOWER_FORCE_KIND1 ? process.env.FLOWER_FORCE_KIND1 !== 'false' : true;
 
   const handle = await startFlowerDaemonServer({
     relayUrls,
+    forceKind1,
     httpPort: process.env.FLOWER_HTTP_PORT ? Number(process.env.FLOWER_HTTP_PORT) : 8787,
     blossomPort: process.env.FLOWER_BLOSSOM_PORT ? Number(process.env.FLOWER_BLOSSOM_PORT) : 0,
     syncIntervalMs: process.env.FLOWER_SYNC_INTERVAL_MS ? Number(process.env.FLOWER_SYNC_INTERVAL_MS) : 2000,

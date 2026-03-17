@@ -130,6 +130,9 @@ By default, the daemon now uses these relays for challenge notes/events:
 - `wss://nos.lol`
 - `wss://relay.damus.io`
 
+For demo visibility, relay-published protocol events default to `kind:1` notes (`FLOWER_FORCE_KIND1=true`).
+Set `FLOWER_FORCE_KIND1=false` to use protocol kinds (`33001+`).
+
 If you want local-only mode (no relay connections), start daemon with:
 
 ```bash

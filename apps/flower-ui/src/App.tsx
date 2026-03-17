@@ -122,6 +122,14 @@ export function App() {
     return byResponder;
   }, [snapshot]);
 
+  const recentSettlements = useMemo(() => {
+    return snapshot.challenges
+      .filter((c) => Boolean(c.settlement))
+      .slice()
+      .sort((a, b) => (b.settlement?.createdAt ?? 0) - (a.settlement?.createdAt ?? 0))
+      .slice(0, 6);
+  }, [snapshot.challenges]);
+
   const spRows = useMemo(() => {
     const providerNpub = provider?.npub ?? 'unknown-provider';
     const provider2Npub = provider2?.npub ?? 'unknown-provider2';
@@ -220,6 +228,31 @@ export function App() {
               </div>
             </div>
           ))}
+
+          <h3 style={{ marginTop: 16 }}>Recent Settlements + Ecash Receipts</h3>
+          {recentSettlements.length === 0 ? (
+            <p className="muted">No settlements yet.</p>
+          ) : (
+            recentSettlements.map((entry) => (
+              <div key={entry.challenge.id} className="result-card">
+                <div className="result-head">
+                  <strong>{entry.challenge.payload.challengeId}</strong>
+                  <span className="badge">settled</span>
+                </div>
+                {(entry.settlement?.payload.payoutReceipts ?? []).length === 0 ? (
+                  <p className="muted">No payout receipts emitted.</p>
+                ) : (
+                  (entry.settlement?.payload.payoutReceipts ?? []).map((r) => (
+                    <div key={r.payoutId} className="sub-row">
+                      <span>{r.responder.slice(0, 16)}…</span>
+                      <span>{r.amountMsats} msat</span>
+                      <span>{r.mintUrl}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ))
+          )}
         </section>
       )}
 
@@ -250,6 +283,21 @@ export function App() {
                     </button>
                   </div>
                 ))}
+
+                <h3 style={{ marginTop: 16 }}>Payout receipts</h3>
+                {recentSettlements.flatMap((s) => s.settlement?.payload.payoutReceipts ?? []).filter((r) => r.responder === sp.npub).length === 0 ? (
+                  <p className="muted">No payouts for this SP yet.</p>
+                ) : (
+                  recentSettlements
+                    .flatMap((s) => s.settlement?.payload.payoutReceipts ?? [])
+                    .filter((r) => r.responder === sp.npub)
+                    .map((r) => (
+                      <div key={r.payoutId} className="sub-row">
+                        <span>{r.amountMsats} msat</span>
+                        <span>{r.mintUrl}</span>
+                      </div>
+                    ))
+                )}
               </div>
             ))}
         </section>

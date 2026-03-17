@@ -17,4 +17,8 @@
 
 5. **Payout + scoring spec alignment**
    - lock reputationScore formula in fixtures/tests
-   - implement ecash payout adapter interface for demo payouts (in progress)
+   - implement ecash payout adapter interface for demo payouts ✅
+
+6. **Demo polish pass**
+   - expose payout receipts in challenger/SP windows
+   - validate full runbook steps end-to-end

@@ -34,3 +34,6 @@
 - Clarified project boundaries: no cross-project `jmcorgan/fips` planning items in Flower Market roadmap.
 - Added new workspace package `packages/flower-payout` with `EcashPayoutAdapter` interface + tests.
 - Updated root workspaces/build/test scripts to include `flower-payout`.
+- Wired runtime settlement flow to emit ecash payout receipts.
+- Wired SP2 as a real second runtime provider identity (`provider2`).
+- Added challenger/SP payout receipt panels and demo runbook at `demo/DEMO-RUNBOOK.md`.

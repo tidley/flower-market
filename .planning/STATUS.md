@@ -1,27 +1,19 @@
 # Flower Market Status
 
-Last updated: 2026-03-14
+Last updated: 2026-03-17
 
 ## Objective
-Build Flower Market using TDD: deterministic settlement + verifiable proofs + payout pipeline.
+Deliver a 3-4 window demo flow: challenger + two SP views + external Nostr feed view.
 
 ## Current phase
-Phase 1 — deterministic core and protocol formalization.
+Phase 2 — demo orchestration and UI workflow hardening.
 
 ## Implemented
-- ContextVM settlement scaffold (`packages/flower-contextvm`)
-- Deterministic settlement kernel (`settleChallenge`)
-- Deterministic envelope hashing (`buildSettlementEnvelope`)
-- Initial tests passing (8 total)
-
-## Planned phases (high level)
-- P0 Foundations ✅
-- P1 Proof Core (in progress)
-- P2 Protocol Spec v0.1
-- P3 Settlement Integration
-- P4 Payout Engine Interface
-- P5 Marketplace (peer buy/sell replication)
-- P6 Simulation + Hardening
+- Runtime scaffold and daemon APIs (challenge/response/market flows)
+- UI mode switching with dedicated views: `challenger`, `sp1`, `sp2`, `all`
+- Challenger recurring challenge controls (manual + every 30s)
+- Challenger file health table (content refs, responders, last checked)
+- SP1/SP2 dashboard views (tracked files, last paid, open challenges)
 
 ## Next checkpoint
-Integrate proof validity into settlement flow and formalize protocol spec v0.1.
+Wire SP2 to a real second runtime provider identity (currently demo placeholder), and add explicit challenge-note posting strategy for feed UX.

@@ -160,3 +160,31 @@ Expected shape:
 3. Persist daemon state and Blossom fixtures to disk.
 4. Extend fraud/dispute workflow with resolver quorum semantics.
 5. Split provider automation into a separately deployable worker process.
+
+## 3-4 Window Demo Layout (current)
+
+Open the Flower UI in separate windows:
+
+- Challenger view: `http://127.0.0.1:5173/?view=challenger`
+- SP1 view: `http://127.0.0.1:5173/?view=sp1`
+- SP2 view: `http://127.0.0.1:5173/?view=sp2`
+- Optional combined view: `http://127.0.0.1:5173/?view=all`
+
+Also open a separate Nostr feed window (jumble.social) for the owner npub link shown in the challenger panel.
+
+What the current demo shows:
+1. Challenger can post retrieval challenges manually or every 30s.
+2. Challenger sees tracked file/content refs, responders, and last checked times.
+3. SP1 view shows tracked files, open challenges, and response action.
+4. SP2 view is currently a demo placeholder dashboard (next step: wire real second provider identity).
+
+## `jmcorgan/fips` tie-in plan
+
+Target split:
+- Flower Market runtime + NIP-17/bootstrap control flow here.
+- Secure post-bootstrap session/data plane delegated to `jmcorgan/fips`.
+
+Planned integration deliverables:
+- bootstrap transcript schema (session id, peers, selected path, proof context)
+- adapter interface from runtime challenge flow into FIPS session setup
+- integration tests validating bootstrap -> FIPS handoff success/failure/replay paths

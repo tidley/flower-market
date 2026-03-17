@@ -1,12 +1,13 @@
 # NOW
 
-## In progress
+1. Validate multi-window demo UX end-to-end:
+   - `?view=challenger`
+   - `?view=sp1`
+   - `?view=sp2`
+   - external jumble.social feed for owner npub
 
-1. **Implementation roadmap checkpoint**
-   - map next code modules (payout adapter + relay event ingestion)
+2. Add runbook docs for demo startup and browser-window layout.
 
-2. **Demo scenario doc**
-   - one complete end-to-end walkthrough from challenge to settlement + marketplace transfer
-
-3. **UI wiring phase**
-   - connect scaffolded UI to live relay events and runtime adapters
+3. Design concrete `jmcorgan/fips` tie-in:
+   - NIP-17 bootstrap transcript shape
+   - handoff contract into FIPS session/data plane

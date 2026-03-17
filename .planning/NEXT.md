@@ -1,7 +1,11 @@
 # NEXT
 
-1. Add true second provider identity in runtime (`provider2`) and server endpoint selection.
-2. Add per-provider response automation and storage accounting.
-3. Emit user-facing challenge/status notes suitable for feed-first UX.
-4. Add integration adapter package for `jmcorgan/fips` bootstrap handoff.
-5. Add replayable scenario script for demo day (deterministic timeline).
+1. Formalize `spec/flower-market-v0.1.md` with MUST/SHOULD language
+2. Add conformance vectors (json fixtures)
+3. Add replayable settlement artifact format (programHash/inputHash/outputHash + signatures)
+4. Implement payout adapter interface (`packages/flower-payout`)
+5. Implement marketplace phase: peer buy/sell replication flow
+   - listing, offer, accept, transfer-proof, settlement
+   - delayed eligibility after successful transfer verification
+6. Add simulation script for challenge rounds and ranking output
+7. Add true second provider identity in runtime (`provider2`) and wire SP2 view to it

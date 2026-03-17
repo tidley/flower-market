@@ -1,19 +1,31 @@
 # LOG
 
-## 2026-03-15
-- Started structured GSD+TDD workflow for fips-nostr-bootstrap.
-- Added Vitest with enforced coverage thresholds.
-- Implemented and tested bootstrap event validation.
-- Expanded state-machine tests for replay/expiry/invalid transitions.
-- Verified build and reached 100% test coverage.
-- Added deterministic demo fixtures and runnable demo CLI scripts.
-- Validated demo preflight/happy/failures flows end-to-end.
+## 2026-03-14
+- Established Flower Market project repo and docs baseline.
+- Added ContextVM settlement + deterministic envelope code.
+- Added 8 passing tests under `packages/flower-contextvm`.
+- Enabled non-watch test mode (`vitest run`) to avoid noisy SIGTERM behavior.
+- Initialized `.planning/` as GSD-style progress control center.
+- Implemented Merkle proof verifier core and adversarial vectors in `flower-contextvm`.
+- Added coverage tooling and enforced >=95% thresholds.
+- Reached 100% coverage across settlement/envelope/proof/index modules.
+- Ran schema lock pass for `spec/flower-market-v0.1.md`.
+- Added storage-agnostic compatibility model and reference compatibility tests.
+- Added and validated reference conformance fixture set (proof, settlement, envelope).
+- Maintained 100% coverage after fixture-based conformance tests.
+- Implemented P3 pipeline integration where validity is computed internally from proofs and deadlines.
+- Verified P3 with dedicated tests; coverage remains 100%.
+- Drafted P5 marketplace protocol schema with eligibility state machine and cooldown rules.
+- Implemented marketplace fixture-backed conformance tests and runtime helpers.
+- Coverage remains 100% after P5b additions.
+- Ran unified spec consistency pass and aligned protocol/marketplace docs to implemented runtime semantics.
+- Added pipeline fixture vectors and fraud vectors with executable tests.
+- Coverage remains 100% after adding P5c fraud/dispute runtime hooks.
+- Added UI/UX spec doc and minimal UI scaffold app; verified `ui:build` success.
 
 ## 2026-03-17
-- Switched focus to Flower Market demo workflow.
-- Updated planning docs (STATUS/NOW/NEXT) for 3-4 window demo objective.
-- Added role-based UI views in `apps/flower-ui` via query param (`challenger`, `sp1`, `sp2`, `all`).
-- Added challenger controls for recurring 30s challenge posting.
-- Added challenger table showing tracked content refs, responders, and last checked timestamps.
-- Added SP1/SP2 dashboards with tracked files, last paid signal, and open challenge visibility.
-- Logged follow-up plan to wire real second provider identity and `jmcorgan/fips` integration.
+- Added multi-window demo modes in `apps/flower-ui` (`challenger`, `sp1`, `sp2`, `all`).
+- Added challenger controls for manual + 30s recurring challenge publishing.
+- Added tracked-file summary for challenger (responders + last checked).
+- Added SP1/SP2 dashboard views for tracked files and open challenge visibility.
+- Updated planning docs to include demo progress while retaining core roadmap items (including payout adapter work).

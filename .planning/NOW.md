@@ -20,5 +20,6 @@
    - implement ecash payout adapter interface for demo payouts ✅
 
 6. **Demo polish pass**
-   - expose payout receipts in challenger/SP windows
-   - validate full runbook steps end-to-end
+   - expose payout receipts in challenger/SP windows ✅
+   - add quick seed blob + bulk SP response actions ✅
+   - validate full runbook steps end-to-end (in progress)

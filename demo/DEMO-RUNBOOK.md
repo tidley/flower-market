@@ -29,10 +29,23 @@ npm run ui:dev
 4. Feed: click "Open owner feed in jumble.social" from challenger panel
 
 ## Demo flow
-1. In challenger window, select blob and click **Start 30s Auto Challenges**.
-2. In SP1 and SP2 windows, click **Respond** on open challenges.
-3. Watch challenger "Recent Settlements + Ecash Receipts" populate.
-4. Watch SP views "Payout receipts" and "Last paid" update.
+1. In challenger window, click **Seed Blob** once.
+2. In challenger window, select blob and click **Start 30s Auto Challenges**.
+3. In challenger window, you can use **SP1+SP2 Respond All Open** for fast rounds.
+4. In SP1 and SP2 windows, click **Respond** on open challenges (manual mode).
+5. Watch challenger "Recent Settlements + Ecash Receipts" populate.
+6. Watch SP views "Payout receipts" and "Last paid" update.
+
+## Deterministic one-shot timeline script
+
+With daemon running:
+
+```bash
+cd /home/tom/code/flower-market
+node demo/run-demo-timeline.mjs
+```
+
+This seeds a blob, publishes one challenge, has provider+provider2 respond, then prints winners and payout receipts.
 
 ## Notes
 - SP2 is now wired as a separate runtime identity (`provider2`).

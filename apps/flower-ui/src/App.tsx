@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchRuntimeState, respondToChallenge } from './api';
+import { createChallenge, fetchRuntimeState, respondToChallenge, uploadBlob } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -36,6 +36,8 @@ export function App() {
   const [autoMode, setAutoMode] = useState(false);
   const autoTimer = useRef<number | null>(null);
   const [challengeBlobId, setChallengeBlobId] = useState('');
+  const [seedBlobId, setSeedBlobId] = useState('demo_blob');
+  const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
 
   async function refreshState() {
     const next = await fetchRuntimeState();
@@ -95,7 +97,20 @@ export function App() {
     }
   }
 
+  async function respondAllOpenChallenges() {
+    await run('sp1+sp2 respond all', async () => {
+      const state = await fetchRuntimeState();
+      const open = state.challenges.filter((c) => c.status === 'open');
+      for (const ch of open) {
+        await respondToChallenge(ch.challenge.payload.challengeId, 'provider');
+        await respondToChallenge(ch.challenge.payload.challengeId, 'provider2');
+      }
+    });
+  }
+
   const owner = snapshot.identities.find((identity) => identity.role === 'owner');
+
+  const openChallenges = useMemo(() => snapshot.challenges.filter((c) => c.status === 'open'), [snapshot.challenges]);
   const provider = snapshot.identities.find((identity) => identity.role === 'provider');
   const provider2 = snapshot.identities.find((identity) => identity.role === 'provider2');
 
@@ -192,6 +207,28 @@ export function App() {
             </a>
           </p>
 
+          <h3>Quick Seed Blob</h3>
+          <label>Seed Blob Id</label>
+          <input value={seedBlobId} onChange={(event) => setSeedBlobId(event.target.value)} />
+          <label>Seed Blob Content</label>
+          <textarea value={seedBlobContent} onChange={(event) => setSeedBlobContent(event.target.value)} rows={3} />
+          <div className="dual" style={{ marginTop: 12 }}>
+            <button
+              onClick={() =>
+                void run('seed blob', async () => {
+                  await uploadBlob(seedBlobId, seedBlobContent);
+                  setChallengeBlobId(seedBlobId);
+                })
+              }
+              disabled={!seedBlobId || !seedBlobContent}
+            >
+              Seed Blob
+            </button>
+            <button onClick={() => void respondAllOpenChallenges()} disabled={openChallenges.length === 0}>
+              SP1+SP2 Respond All Open
+            </button>
+          </div>
+
           <label>Blob for recurring challenge</label>
           <select value={challengeBlobId} onChange={(event) => setChallengeBlobId(event.target.value)}>
             <option value="">Select blob</option>
@@ -272,7 +309,7 @@ export function App() {
                 )}
 
                 <h3 style={{ marginTop: 16 }}>Open challenges</h3>
-                {snapshot.challenges.filter((c) => c.status === 'open').map((c) => (
+                {openChallenges.map((c) => (
                   <div key={c.challenge.id} className="list-row">
                     <div>
                       <strong>{c.challenge.payload.challengeId}</strong>

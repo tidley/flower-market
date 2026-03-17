@@ -165,6 +165,8 @@ Expected shape:
 
 Detailed runbook: `demo/DEMO-RUNBOOK.md`
 
+One-shot timeline script: `node demo/run-demo-timeline.mjs`
+
 Open the Flower UI in separate windows:
 
 - Challenger view: `http://127.0.0.1:5173/?view=challenger`

@@ -37,3 +37,5 @@
 - Wired runtime settlement flow to emit ecash payout receipts.
 - Wired SP2 as a real second runtime provider identity (`provider2`).
 - Added challenger/SP payout receipt panels and demo runbook at `demo/DEMO-RUNBOOK.md`.
+- Added challenger quick-seed blob action and bulk `SP1+SP2 Respond All Open` action.
+- Added deterministic demo timeline script: `demo/run-demo-timeline.mjs`.

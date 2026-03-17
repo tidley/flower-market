@@ -1,0 +1,18 @@
+{
+  "name": "flower-payout",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Payout adapter interfaces for Flower Market",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "files": [
+    "src",
+    "dist"
+  ]
+}

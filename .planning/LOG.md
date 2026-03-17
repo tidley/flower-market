@@ -32,3 +32,5 @@
 - Drafted exact reputationScore formula in protocol spec.
 - Added provider-bound encrypted replica guidance to prevent cross-provider response replay.
 - Clarified project boundaries: no cross-project `jmcorgan/fips` planning items in Flower Market roadmap.
+- Added new workspace package `packages/flower-payout` with `EcashPayoutAdapter` interface + tests.
+- Updated root workspaces/build/test scripts to include `flower-payout`.

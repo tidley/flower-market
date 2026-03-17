@@ -17,4 +17,4 @@
 
 5. **Payout + scoring spec alignment**
    - lock reputationScore formula in fixtures/tests
-   - scope ecash payout adapter interface for demo payouts
+   - implement ecash payout adapter interface for demo payouts (in progress)

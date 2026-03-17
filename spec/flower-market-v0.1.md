@@ -57,6 +57,21 @@ Use explicit URI-like prefixes for `contentRef`:
 - `https://...`
 - `db:<opaque-key>`
 
+### 5.4 Provider-bound encrypted replicas (anti-cross-provider replay)
+
+To prevent one Storage Provider from reusing another provider's challenge material, each provider SHOULD store a provider-specific encrypted replica.
+
+Recommended model:
+1. For provider `sp_i`, data owner derives unique encryption context using provider identity and challenge namespace.
+2. Encrypted dataset yields provider-specific Merkle root `R_i`.
+3. Challenger/verifier tracks mapping `sp_i -> R_i`.
+4. A challenge to `sp_i` MUST be verified against `R_i` (not a shared global root).
+
+Implications:
+- proofs are provider-bound by root,
+- cross-provider answer replay fails verification,
+- challenge verification remains backend-agnostic.
+
 ## 6. Canonical data and hashing rules
 
 1. Event payloads used for hashing MUST be canonical JSON with lexicographically sorted object keys.
@@ -169,11 +184,20 @@ Rules:
    3) `latencyMs` ascending
 4. Select top 3.
 5. Base payouts default to [15,10,5] sats unless challenge overrides.
-6. Bonus multiplier:
-   - reliability >= 0.95 => 1.0x
-   - reliability >= 0.90 => 0.5x
-   - else => 0x
-7. `totalMsats = baseSats * 1000 + bonusMsats`.
+6. Reputation score MUST be computed per responder using a rolling window of the latest `W=100` challenge opportunities:
+   - `successRate = validResponses / max(1, responded)`
+   - `availability = responded / max(1, eligible)`
+   - `latencyScore = min(1, LATENCY_REF_MS / max(1, medianValidLatencyMs))` where `LATENCY_REF_MS = 300`
+   - `rawScore = 0.60 * successRate + 0.30 * latencyScore + 0.10 * availability`
+   - cold-start smoothing: `reputationScore = (n / (n + K)) * rawScore + (K / (n + K)) * PRIOR` where:
+     - `n = min(W, eligible)`
+     - `K = 20`
+     - `PRIOR = 0.50`
+7. Reputation score MUST be clamped to `[0,1]` and rounded to 4 decimal places before payout math.
+8. Reliability bonus distribution MUST be proportional across selected winners:
+   - `bonusMsats_i = floor(reliabilityBonusMsats * reputationScore_i / sum(reputationScore_winners))`
+   - if all winner scores are 0, `bonusMsats_i = 0` for all winners.
+9. `totalMsats = baseSats * 1000 + bonusMsats`.
 
 ## 9. Security requirements
 

@@ -8,6 +8,10 @@ Build Flower Market using TDD: deterministic settlement + verifiable proofs + pa
 ## Current phase
 Phase 2 — deterministic core + demo orchestration (without dropping core roadmap items).
 
+Protocol updates in progress:
+- Exact reputationScore formula drafted into `spec/flower-market-v0.1.md`.
+- Provider-bound encrypted replica guidance added for anti-cross-provider replay.
+
 ## Implemented
 - ContextVM settlement scaffold (`packages/flower-contextvm`)
 - Deterministic settlement kernel (`settleChallenge`)

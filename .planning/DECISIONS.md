@@ -15,3 +15,12 @@
 ## 2026-03-14 — Add dedicated marketplace phase
 - **Decision:** Add a standalone phase for peer buy/sell replication market.
 - **Why:** Replication supply growth and economic incentives are core product scope, not a side feature.
+
+## 2026-03-17 — Reputation-weighted rewards without stake/onboarding tolls
+- **Decision:** Keep anti-gaming incentives to reputation/history weighting only.
+- **Explicitly rejected:** stake/bond requirements, onboarding costs, hardware/network diversity weighting.
+- **Why:** Simpler operator UX for early deployment while still penalizing poor responders over time.
+
+## 2026-03-17 — Provider-bound encrypted replicas
+- **Decision:** Use provider-specific encrypted datasets and per-provider Merkle roots for challenge verification.
+- **Why:** Prevents cross-provider proof replay where one SP pretends to be multiple SP identities using shared plaintext challenge material.

@@ -14,3 +14,7 @@
 4. **Multi-window demo stabilization**
    - validate `?view=challenger`, `?view=sp1`, `?view=sp2` flows
    - ensure 30s challenge loop is reliable for demo sessions
+
+5. **Payout + scoring spec alignment**
+   - lock reputationScore formula in fixtures/tests
+   - scope ecash payout adapter interface for demo payouts

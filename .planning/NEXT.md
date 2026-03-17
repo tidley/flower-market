@@ -4,6 +4,7 @@
 2. Add conformance vectors (json fixtures)
 3. Add replayable settlement artifact format (programHash/inputHash/outputHash + signatures)
 4. Implement payout adapter interface (`packages/flower-payout`)
+   - first backend: ecash mint adapter (demo path)
 5. Implement marketplace phase: peer buy/sell replication flow
    - listing, offer, accept, transfer-proof, settlement
    - delayed eligibility after successful transfer verification

@@ -29,3 +29,6 @@
 - Added tracked-file summary for challenger (responders + last checked).
 - Added SP1/SP2 dashboard views for tracked files and open challenge visibility.
 - Updated planning docs to include demo progress while retaining core roadmap items (including payout adapter work).
+- Drafted exact reputationScore formula in protocol spec.
+- Added provider-bound encrypted replica guidance to prevent cross-provider response replay.
+- Clarified project boundaries: no cross-project `jmcorgan/fips` planning items in Flower Market roadmap.

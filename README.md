@@ -126,12 +126,18 @@ npm run runtime:daemon
 npm run ui:dev
 ```
 
-To target real relays from the daemon:
+By default, the daemon now uses these relays for challenge notes/events:
+- `wss://nos.lol`
+- `wss://relay.damus.io`
+
+To override relay set:
 
 ```bash
 npm run runtime:daemon -- \
   --relay wss://relay.damus.io \
   --relay wss://nos.lol
+# or via env:
+# FLOWER_RELAYS=wss://nos.lol,wss://relay.damus.io npm run runtime:daemon
 ```
 
 The Vite dev server proxies `/api` to `http://127.0.0.1:${FLOWER_API_PORT}` (default `8787`).

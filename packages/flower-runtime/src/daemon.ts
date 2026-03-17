@@ -1,5 +1,6 @@
 import { deriveEligibilityState, verifyTransferProof } from '../../flower-contextvm/src/index.ts';
 import { EcashPayoutAdapter } from '../../flower-payout/src/index.ts';
+import { finalizeEvent, SimplePool } from 'nostr-tools';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
 import { buildCommitHash, createRuntimeSigner, randomId } from './crypto.ts';
 import { MemoryRelayTransport, NostrRelayTransport } from './relay.ts';
@@ -152,7 +153,7 @@ export class FlowerDaemon {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
     const now = Math.floor(Date.now() / 1000);
 
-    return this.transport.publish(this.owner, {
+    const event = await this.transport.publish(this.owner, {
       type: 'challenge',
       challengeId: randomId('ch'),
       epoch: now,
@@ -165,6 +166,9 @@ export class FlowerDaemon {
       payoutSchedule: input.payoutSchedule,
       reliabilityBonusMsats: input.reliabilityBonusMsats,
     });
+
+    await this.publishChallengeNote(event);
+    return event;
   }
 
   async respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' = 'provider'): Promise<{
@@ -284,6 +288,32 @@ export class FlowerDaemon {
       sampleProof: blob.sampleProof,
       proofTs: Math.floor(Date.now() / 1000),
     });
+  }
+
+  private async publishChallengeNote(challenge: PublishedFlowerEvent<ChallengeEventPayload>): Promise<void> {
+    if (this.relayMode !== 'nostr' || this.relayUrls.length === 0) return;
+
+    const pool = new SimplePool();
+    try {
+      const note = finalizeEvent(
+        {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'flower-market'],
+            ['t', 'challenge'],
+            ['c', challenge.payload.challengeId],
+            ['r', challenge.payload.contentRef],
+          ],
+          content: `Flower challenge ${challenge.payload.challengeId} posted for ${challenge.payload.contentRef}; commit by ${challenge.payload.commitDeadline}, reveal by ${challenge.payload.revealDeadline}.`,
+        },
+        this.owner.secretKey,
+      );
+
+      await Promise.allSettled(pool.publish(this.relayUrls, note));
+    } finally {
+      pool.close(this.relayUrls);
+    }
   }
 
   private async settleOpenChallenges(): Promise<void> {

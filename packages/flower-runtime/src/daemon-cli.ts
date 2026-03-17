@@ -1,5 +1,7 @@
 import { startFlowerDaemonServer } from './server.ts';
 
+const DEFAULT_RELAYS = ['wss://nos.lol', 'wss://relay.damus.io'];
+
 function parseRelayUrls(argv: string[]): string[] {
   const relays: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
@@ -12,13 +14,17 @@ function parseRelayUrls(argv: string[]): string[] {
 }
 
 async function main(argv = process.argv.slice(2)): Promise<void> {
+  const cliRelays = parseRelayUrls(argv);
+  const envRelays = process.env.FLOWER_RELAYS?.split(',').map((s) => s.trim()).filter(Boolean);
+
   const handle = await startFlowerDaemonServer({
-    relayUrls: parseRelayUrls(argv).length > 0 ? parseRelayUrls(argv) : process.env.FLOWER_RELAYS?.split(',').filter(Boolean),
+    relayUrls: cliRelays.length > 0 ? cliRelays : (envRelays && envRelays.length > 0 ? envRelays : DEFAULT_RELAYS),
     httpPort: process.env.FLOWER_HTTP_PORT ? Number(process.env.FLOWER_HTTP_PORT) : 8787,
     blossomPort: process.env.FLOWER_BLOSSOM_PORT ? Number(process.env.FLOWER_BLOSSOM_PORT) : 0,
     syncIntervalMs: process.env.FLOWER_SYNC_INTERVAL_MS ? Number(process.env.FLOWER_SYNC_INTERVAL_MS) : 2000,
     ownerSecretKeyHex: process.env.FLOWER_OWNER_SK,
     providerSecretKeyHex: process.env.FLOWER_PROVIDER_SK,
+    provider2SecretKeyHex: process.env.FLOWER_PROVIDER2_SK,
     settlerSecretKeyHex: process.env.FLOWER_SETTLER_SK,
   });
 

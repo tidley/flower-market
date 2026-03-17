@@ -7,6 +7,7 @@ Show challenger + two SP dashboards and a live Nostr feed view.
 - `npm install`
 - runtime daemon reachable on `127.0.0.1:<FLOWER_API_PORT>` (default `8787`)
 - UI dev server on `127.0.0.1:5173`
+- default relay set includes `wss://nos.lol` and `wss://relay.damus.io` (override with `FLOWER_RELAYS` or `--relay`)
 
 ## Start
 

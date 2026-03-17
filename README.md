@@ -130,6 +130,13 @@ By default, the daemon now uses these relays for challenge notes/events:
 - `wss://nos.lol`
 - `wss://relay.damus.io`
 
+If you want local-only mode (no relay connections), start daemon with:
+
+```bash
+npm run runtime:daemon -- --memory
+# or: FLOWER_RELAY_MODE=memory npm run runtime:daemon
+```
+
 To override relay set:
 
 ```bash

@@ -13,12 +13,19 @@ function parseRelayUrls(argv: string[]): string[] {
   return relays;
 }
 
+function wantsMemoryMode(argv: string[]): boolean {
+  return argv.includes('--memory') || process.env.FLOWER_RELAY_MODE === 'memory';
+}
+
 async function main(argv = process.argv.slice(2)): Promise<void> {
   const cliRelays = parseRelayUrls(argv);
   const envRelays = process.env.FLOWER_RELAYS?.split(',').map((s) => s.trim()).filter(Boolean);
+  const relayUrls = wantsMemoryMode(argv)
+    ? []
+    : (cliRelays.length > 0 ? cliRelays : (envRelays && envRelays.length > 0 ? envRelays : DEFAULT_RELAYS));
 
   const handle = await startFlowerDaemonServer({
-    relayUrls: cliRelays.length > 0 ? cliRelays : (envRelays && envRelays.length > 0 ? envRelays : DEFAULT_RELAYS),
+    relayUrls,
     httpPort: process.env.FLOWER_HTTP_PORT ? Number(process.env.FLOWER_HTTP_PORT) : 8787,
     blossomPort: process.env.FLOWER_BLOSSOM_PORT ? Number(process.env.FLOWER_BLOSSOM_PORT) : 0,
     syncIntervalMs: process.env.FLOWER_SYNC_INTERVAL_MS ? Number(process.env.FLOWER_SYNC_INTERVAL_MS) : 2000,

@@ -14,7 +14,10 @@ Show challenger + two SP dashboards and a live Nostr feed view.
 Terminal A:
 ```bash
 cd /home/tom/code/flower-market
+# default relay mode (nos.lol + damus)
 npm run runtime:daemon
+# local fallback if relay connections are flaky:
+# npm run runtime:daemon -- --memory
 ```
 
 Terminal B:

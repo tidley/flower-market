@@ -134,7 +134,13 @@ npm run runtime:daemon -- \
   --relay wss://nos.lol
 ```
 
-The Vite dev server proxies `/api` to `http://127.0.0.1:8787`.
+The Vite dev server proxies `/api` to `http://127.0.0.1:${FLOWER_API_PORT}` (default `8787`).
+
+Example using port `8788`:
+
+```bash
+FLOWER_API_PORT=8788 npm run ui:dev
+```
 
 ## VPS Deployment
 

@@ -5,7 +5,7 @@ Show challenger + two SP dashboards and a live Nostr feed view.
 
 ## Prereqs
 - `npm install`
-- runtime daemon reachable on `127.0.0.1:8787`
+- runtime daemon reachable on `127.0.0.1:<FLOWER_API_PORT>` (default `8787`)
 - UI dev server on `127.0.0.1:5173`
 
 ## Start
@@ -51,3 +51,4 @@ This seeds a blob, publishes one challenge, has provider+provider2 respond, then
 - SP2 is now wired as a separate runtime identity (`provider2`).
 - Payout receipts are demo ecash receipts from `EcashPayoutAdapter`.
 - This is a demo payout path, not production mint custody logic.
+ This is a demo payout path, not production mint custody logic.

@@ -202,7 +202,7 @@ export function App() {
           <h2>Challenger UI</h2>
           <p>Challenge feed can be viewed at Jumble for owner npub:</p>
           <p>
-            <a href={`https://jumble.social/?npub=${encodeURIComponent(owner?.npub ?? '')}`} target="_blank" rel="noreferrer">
+            <a href={`https://jumble.social/users/${encodeURIComponent(owner?.npub ?? '')}`} target="_blank" rel="noreferrer">
               Open owner feed in jumble.social
             </a>
           </p>

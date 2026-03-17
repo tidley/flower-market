@@ -58,6 +58,14 @@ export interface SettlementWinner {
   totalMsats: number;
 }
 
+export interface SettlementPayoutReceipt {
+  responder: string;
+  amountMsats: number;
+  mintUrl: string;
+  tokenRef: string;
+  payoutId: string;
+}
+
 export interface SettlementEventPayload {
   type: 'settlement';
   challengeId: string;
@@ -67,6 +75,7 @@ export interface SettlementEventPayload {
   outputHash: string;
   winners: SettlementWinner[];
   excluded: string[];
+  payoutReceipts?: SettlementPayoutReceipt[];
 }
 
 export interface MarketListingEventPayload {
@@ -211,7 +220,7 @@ export interface MarketplaceRuntimeView {
 }
 
 export interface RuntimeIdentityView {
-  role: 'owner' | 'provider' | 'settler';
+  role: 'owner' | 'provider' | 'provider2' | 'settler';
   npub: string;
   pubkey: string;
 }

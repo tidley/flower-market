@@ -1,4 +1,5 @@
 import { deriveEligibilityState, verifyTransferProof } from '../../flower-contextvm/src/index.ts';
+import { EcashPayoutAdapter } from '../../flower-payout/src/index.ts';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
 import { buildCommitHash, createRuntimeSigner, randomId } from './crypto.ts';
 import { MemoryRelayTransport, NostrRelayTransport } from './relay.ts';
@@ -36,18 +37,22 @@ export interface FlowerDaemonConfig {
   blossomPort?: number;
   ownerSecretKeyHex?: string;
   providerSecretKeyHex?: string;
+  provider2SecretKeyHex?: string;
   settlerSecretKeyHex?: string;
+  mintUrls?: string[];
 }
 
 export class FlowerDaemon {
   readonly owner: RuntimeSigner;
   readonly provider: RuntimeSigner;
+  readonly provider2: RuntimeSigner;
   readonly settler: RuntimeSigner;
   readonly relayMode: 'memory' | 'nostr';
   readonly relayUrls: string[];
 
   private blossom: DummyBlossomServer;
   private transport: RelayTransport;
+  private payoutAdapter: EcashPayoutAdapter;
   private blossomBaseUrl = '';
   private syncIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
@@ -56,10 +61,12 @@ export class FlowerDaemon {
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
     this.provider = createRuntimeSigner(config.providerSecretKeyHex);
+    this.provider2 = createRuntimeSigner(config.provider2SecretKeyHex);
     this.settler = createRuntimeSigner(config.settlerSecretKeyHex);
     this.relayUrls = config.relayUrls ?? [];
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
     this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls) : new MemoryRelayTransport();
+    this.payoutAdapter = new EcashPayoutAdapter({ mintUrls: config.mintUrls ?? ['https://mint.example'] });
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
   }
@@ -160,7 +167,7 @@ export class FlowerDaemon {
     });
   }
 
-  async respondToChallenge(challengeId: string): Promise<{
+  async respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' = 'provider'): Promise<{
     commit: PublishedFlowerEvent<CommitEventPayload>;
     reveal: PublishedFlowerEvent<RevealEventPayload>;
   }> {
@@ -176,19 +183,20 @@ export class FlowerDaemon {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, blobId);
     const revealNonce = randomId('reveal');
     const now = Math.floor(Date.now() / 1000);
+    const responderSigner = providerRole === 'provider2' ? this.provider2 : this.provider;
 
-    const commit = await this.transport.publish(this.provider, {
+    const commit = await this.transport.publish(responderSigner, {
       type: 'commit',
       challengeId,
-      responder: this.provider.npub,
-      commitHash: buildCommitHash(challengeId, this.provider.npub, blob.leafHash, revealNonce),
+      responder: responderSigner.npub,
+      commitHash: buildCommitHash(challengeId, responderSigner.npub, blob.leafHash, revealNonce),
       commitTs: now,
     });
 
-    const reveal = await this.transport.publish(this.provider, {
+    const reveal = await this.transport.publish(responderSigner, {
       type: 'reveal',
       challengeId,
-      responder: this.provider.npub,
+      responder: responderSigner.npub,
       commitTs: now,
       revealTs: now + 1,
       latencyMs: 75,
@@ -289,7 +297,7 @@ export class FlowerDaemon {
         this.blossomBaseUrl,
         parseBlossomBlobId(challengeView.challenge.payload.contentRef),
       );
-      await settlePublishedChallenge(this.transport, this.settler, challengeView.challenge, blob);
+      await settlePublishedChallenge(this.transport, this.settler, challengeView.challenge, blob, undefined, undefined, this.payoutAdapter);
     }
   }
 
@@ -328,6 +336,7 @@ export class FlowerDaemon {
     return [
       { role: 'owner', npub: this.owner.npub, pubkey: this.owner.publicKey },
       { role: 'provider', npub: this.provider.npub, pubkey: this.provider.publicKey },
+      { role: 'provider2', npub: this.provider2.npub, pubkey: this.provider2.publicKey },
       { role: 'settler', npub: this.settler.npub, pubkey: this.settler.publicKey },
     ];
   }

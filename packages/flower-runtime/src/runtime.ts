@@ -3,6 +3,7 @@ import {
   settleChallengeFromProofs,
   verifyTransferProof,
 } from '../../flower-contextvm/src/index.ts';
+import type { PayoutAdapter } from '../../flower-payout/src/index.ts';
 import { buildCommitHash, matchesCommit, payloadHash, randomId } from './crypto.ts';
 import { fetchBlossomObject } from './blossom.ts';
 import type {
@@ -105,6 +106,7 @@ export async function settlePublishedChallenge(
   blossom: BlossomFixture,
   knownCommit?: PublishedFlowerEvent<CommitEventPayload>,
   knownReveal?: PublishedFlowerEvent<RevealEventPayload>,
+  payoutAdapter?: PayoutAdapter,
 ): Promise<PublishedFlowerEvent<SettlementEventPayload>> {
   const events = await transport.list({ challengeId: challenge.payload.challengeId });
   const commits = dedupeById(
@@ -174,6 +176,34 @@ export async function settlePublishedChallenge(
     settlementOutput,
   );
 
+  const winners = settlementOutput.winners.map((winner) => ({
+    responder: winner.responder,
+    rank: winner.rank,
+    baseSats: winner.baseSats,
+    bonusMsats: winner.bonusMsats,
+    totalMsats: winner.totalMsats,
+  }));
+
+  const payoutReceipts = payoutAdapter
+    ? await Promise.all(
+        winners.map(async (winner) => {
+          const receipt = await payoutAdapter.execute({
+            recipientNpub: winner.responder,
+            amountMsats: winner.totalMsats,
+            settlementRef: challenge.payload.challengeId,
+            memo: `flower payout rank ${winner.rank}`,
+          });
+          return {
+            responder: winner.responder,
+            amountMsats: winner.totalMsats,
+            mintUrl: receipt.mintUrl,
+            tokenRef: receipt.tokenRef,
+            payoutId: receipt.id,
+          };
+        }),
+      )
+    : undefined;
+
   const settlementPayload: SettlementEventPayload = {
     type: 'settlement',
     challengeId: challenge.payload.challengeId,
@@ -181,14 +211,9 @@ export async function settlePublishedChallenge(
     programHash: envelope.programHash,
     inputHash: envelope.inputHash,
     outputHash: envelope.outputHash,
-    winners: settlementOutput.winners.map((winner) => ({
-      responder: winner.responder,
-      rank: winner.rank,
-      baseSats: winner.baseSats,
-      bonusMsats: winner.bonusMsats,
-      totalMsats: winner.totalMsats,
-    })),
+    winners,
     excluded: settlementOutput.excluded,
+    payoutReceipts,
   };
 
   return transport.publish(settler, settlementPayload);

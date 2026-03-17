@@ -97,6 +97,7 @@ export function App() {
 
   const owner = snapshot.identities.find((identity) => identity.role === 'owner');
   const provider = snapshot.identities.find((identity) => identity.role === 'provider');
+  const provider2 = snapshot.identities.find((identity) => identity.role === 'provider2');
 
   const challengesByBlob = useMemo(() => {
     const out = new Map<string, { lastChecked: number | null; responders: Set<string> }>();
@@ -123,7 +124,7 @@ export function App() {
 
   const spRows = useMemo(() => {
     const providerNpub = provider?.npub ?? 'unknown-provider';
-    const syntheticSp2 = 'npub1sp2demo000000000000000000000000000000000000000000000000000';
+    const provider2Npub = provider2?.npub ?? 'unknown-provider2';
     const files = snapshot.blobs.map((b) => b.contentRef);
 
     const sp1Files = files.filter((_, i) => i % 2 === 0);
@@ -132,6 +133,7 @@ export function App() {
     return [
       {
         id: 'sp1',
+        role: 'provider' as const,
         label: 'Storage Provider #1',
         npub: providerNpub,
         files: sp1Files,
@@ -139,13 +141,14 @@ export function App() {
       },
       {
         id: 'sp2',
-        label: 'Storage Provider #2 (demo)',
-        npub: syntheticSp2,
+        role: 'provider2' as const,
+        label: 'Storage Provider #2',
+        npub: provider2Npub,
         files: sp2Files,
-        lastPaid: null,
+        lastPaid: providerLastPaid.get(provider2Npub) ?? null,
       },
     ];
-  }, [snapshot.blobs, provider?.npub, providerLastPaid]);
+  }, [snapshot.blobs, provider?.npub, provider2?.npub, providerLastPaid]);
 
   return (
     <div className="page-shell">
@@ -242,13 +245,9 @@ export function App() {
                       <strong>{c.challenge.payload.challengeId}</strong>
                       <p>{c.challenge.payload.contentRef}</p>
                     </div>
-                    {sp.id === 'sp1' ? (
-                      <button onClick={() => void run('sp1 respond', () => respondToChallenge(c.challenge.payload.challengeId))}>
-                        Respond
-                      </button>
-                    ) : (
-                      <span className="badge">demo placeholder</span>
-                    )}
+                    <button onClick={() => void run(`${sp.id} respond`, () => respondToChallenge(c.challenge.payload.challengeId, sp.role))}>
+                      Respond
+                    </button>
                   </div>
                 ))}
               </div>

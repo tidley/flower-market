@@ -61,8 +61,8 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
       }
 
       if (request.method === 'POST' && url.pathname === '/api/challenges/respond') {
-        const body = await readJson<{ challengeId: string }>(request);
-        const result = await daemon.respondToChallenge(body.challengeId);
+        const body = await readJson<{ challengeId: string; providerRole?: 'provider' | 'provider2' }>(request);
+        const result = await daemon.respondToChallenge(body.challengeId, body.providerRole ?? 'provider');
         await daemon.tick();
         json(response, 200, result);
         return;

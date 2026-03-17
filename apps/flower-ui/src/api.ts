@@ -35,11 +35,11 @@ export function createChallenge(input: {
   });
 }
 
-export function respondToChallenge(challengeId: string) {
+export function respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' = 'provider') {
   return request('/api/challenges/respond', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ challengeId }),
+    body: JSON.stringify({ challengeId, providerRole }),
   });
 }
 

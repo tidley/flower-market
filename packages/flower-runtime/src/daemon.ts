@@ -53,6 +53,12 @@ type PublishedMessage = {
   tags: string[][];
 };
 
+const TEST_CASHU_MNEMONICS = {
+  challenger: 'invest unit fire blood melt elephant ancient erase way neck insane clutch',
+  sp1: 'child armor company physical spatial gather draw tired push heavy parrot lemon',
+  sp2: 'orbit maple badge rabbit vocal silver upset canyon flush syrup cotton drill',
+} as const;
+
 export class FlowerDaemon {
   readonly owner: RuntimeSigner;
   readonly provider: RuntimeSigner;
@@ -451,9 +457,24 @@ export class FlowerDaemon {
 
   private identities(): RuntimeIdentityView[] {
     return [
-      { role: 'owner', npub: this.owner.npub, pubkey: this.owner.publicKey },
-      { role: 'provider', npub: this.provider.npub, pubkey: this.provider.publicKey },
-      { role: 'provider2', npub: this.provider2.npub, pubkey: this.provider2.publicKey },
+      {
+        role: 'owner',
+        npub: this.owner.npub,
+        pubkey: this.owner.publicKey,
+        cashuTestMnemonic: TEST_CASHU_MNEMONICS.challenger,
+      },
+      {
+        role: 'provider',
+        npub: this.provider.npub,
+        pubkey: this.provider.publicKey,
+        cashuTestMnemonic: TEST_CASHU_MNEMONICS.sp1,
+      },
+      {
+        role: 'provider2',
+        npub: this.provider2.npub,
+        pubkey: this.provider2.publicKey,
+        cashuTestMnemonic: TEST_CASHU_MNEMONICS.sp2,
+      },
       { role: 'settler', npub: this.settler.npub, pubkey: this.settler.publicKey },
     ];
   }

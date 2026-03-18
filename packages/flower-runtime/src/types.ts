@@ -223,6 +223,7 @@ export interface RuntimeIdentityView {
   role: 'owner' | 'provider' | 'provider2' | 'settler';
   npub: string;
   pubkey: string;
+  cashuTestMnemonic?: string;
 }
 
 export interface RuntimeSnapshot {

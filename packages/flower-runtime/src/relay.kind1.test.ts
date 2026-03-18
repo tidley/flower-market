@@ -53,8 +53,9 @@ describe('NostrRelayTransport kind mode', () => {
       reliabilityBonusMsats: 1000,
     });
 
-    const raw = publishMock.mock.calls[0][1];
-    expect(raw.kind).toBe(1);
+    const calls = publishMock.mock.calls as unknown as Array<unknown[]>;
+    const raw = calls[0]?.[1] as { kind?: number } | undefined;
+    expect(raw?.kind).toBe(1);
   });
 
   it('publishes protocol kind when forceKind1=false', async () => {
@@ -73,7 +74,8 @@ describe('NostrRelayTransport kind mode', () => {
       reliabilityBonusMsats: 1000,
     });
 
-    const raw = publishMock.mock.calls[0][1];
-    expect(raw.kind).toBe(33001);
+    const calls = publishMock.mock.calls as unknown as Array<unknown[]>;
+    const raw = calls[0]?.[1] as { kind?: number } | undefined;
+    expect(raw?.kind).toBe(33001);
   });
 });

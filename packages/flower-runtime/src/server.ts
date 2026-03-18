@@ -41,6 +41,11 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
         return;
       }
 
+      if (request.method === 'GET' && url.pathname === '/api/events') {
+        json(response, 200, await daemon.getEvents());
+        return;
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/blobs') {
         const body = await readJson<{ blobId?: string; content: string }>(request);
         const blob = daemon.seedBlob(body.blobId ?? `blob_${Date.now()}`, body.content);

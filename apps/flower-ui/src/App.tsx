@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
-import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchRuntimeState, respondToChallenge, uploadBlob } from './api';
+import type { PublishedFlowerEvent, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
+import { createChallenge, fetchPublishedEvents, fetchRuntimeState, respondToChallenge, uploadBlob } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -38,11 +38,13 @@ export function App() {
   const [challengeBlobId, setChallengeBlobId] = useState('');
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
+  const [publishedEvents, setPublishedEvents] = useState<PublishedFlowerEvent[]>([]);
 
   async function refreshState() {
-    const next = await fetchRuntimeState();
+    const [next, events] = await Promise.all([fetchRuntimeState(), fetchPublishedEvents()]);
     startTransition(() => {
       setSnapshot(next);
+      setPublishedEvents(events.slice().sort((a, b) => b.createdAt - a.createdAt));
       setStatus(`Connected to ${next.relayMode} runtime`);
       if (!challengeBlobId && next.blobs.length > 0) {
         setChallengeBlobId(next.blobs[0].blobId);
@@ -287,6 +289,23 @@ export function App() {
                     </div>
                   ))
                 )}
+              </div>
+            ))
+          )}
+
+          <h3 style={{ marginTop: 16 }}>Published Messages</h3>
+          {publishedEvents.length === 0 ? (
+            <p className="muted">No published Flower messages yet.</p>
+          ) : (
+            publishedEvents.slice(0, 20).map((event) => (
+              <div key={event.id} className="result-card">
+                <div className="result-head">
+                  <strong>{event.payload.type}</strong>
+                  <span className="badge">kind {event.kind}</span>
+                </div>
+                <div className="sub-row"><span>id</span><code>{event.id}</code></div>
+                <div className="sub-row"><span>time</span><span>{fmtTs(event.createdAt)}</span></div>
+                <div className="sub-row"><span>author</span><code>{event.pubkey.slice(0, 16)}…</code></div>
               </div>
             ))
           )}

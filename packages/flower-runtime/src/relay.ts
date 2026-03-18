@@ -68,16 +68,24 @@ function decodeEvent(raw: {
   pubkey: string;
   created_at: number;
   content: string;
-}): PublishedFlowerEvent {
-  const payload = JSON.parse(raw.content) as FlowerPayload;
-  return {
-    id: raw.id,
-    kind: raw.kind,
-    pubkey: raw.pubkey,
-    createdAt: raw.created_at,
-    payload,
-    raw,
-  };
+}): PublishedFlowerEvent | null {
+  try {
+    const payload = JSON.parse(raw.content) as FlowerPayload;
+    if (!payload || typeof payload !== 'object' || !('type' in payload)) {
+      return null;
+    }
+
+    return {
+      id: raw.id,
+      kind: raw.kind,
+      pubkey: raw.pubkey,
+      createdAt: raw.created_at,
+      payload,
+      raw,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface RelayTransport {
@@ -91,7 +99,10 @@ export class MemoryRelayTransport implements RelayTransport {
 
   async publish<T extends FlowerPayload>(signer: RuntimeSigner, payload: T): Promise<PublishedFlowerEvent<T>> {
     const raw = encodeEvent(signer, payload);
-    const decoded = decodeEvent(raw) as PublishedFlowerEvent<T>;
+    const decoded = decodeEvent(raw) as PublishedFlowerEvent<T> | null;
+    if (!decoded) {
+      throw new Error('Failed to decode in-memory flower event');
+    }
     this.events.push(decoded);
     return decoded;
   }
@@ -108,6 +119,7 @@ export class NostrRelayTransport implements RelayTransport {
   private relays: string[];
   private maxWaitMs: number;
   private forceKind1: boolean;
+  private localPublished: PublishedFlowerEvent[] = [];
 
   constructor(relays: string[], maxWaitMs = 1500, forceKind1 = false) {
     this.relays = relays;
@@ -119,13 +131,28 @@ export class NostrRelayTransport implements RelayTransport {
     const raw = encodeEvent(signer, payload, Math.floor(Date.now() / 1000), this.forceKind1);
     const publishResults = this.pool.publish(this.relays, raw);
     await Promise.allSettled(publishResults);
-    return decodeEvent(raw) as PublishedFlowerEvent<T>;
+
+    const decoded = decodeEvent(raw) as PublishedFlowerEvent<T> | null;
+    if (!decoded) {
+      throw new Error('Failed to decode published flower event');
+    }
+
+    this.localPublished.push(decoded);
+    return decoded;
   }
 
   async list(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
     const kinds = filter.kinds && filter.kinds.length > 0 ? filter.kinds : (this.forceKind1 ? [1] : Object.values(FLOWER_EVENT_KINDS));
-    const events = await this.pool.querySync(this.relays, { kinds, limit: 200 }, { maxWait: this.maxWaitMs });
-    return events.map(decodeEvent).filter((event) => matchesFilter(event, filter));
+    const relayFilter = { kinds, limit: 200, '#t': ['flower-market'] };
+    const events = await this.pool.querySync(this.relays, relayFilter as any, { maxWait: this.maxWaitMs });
+    const remote = events.map(decodeEvent).filter((event): event is PublishedFlowerEvent => Boolean(event));
+
+    const mergedById = new Map<string, PublishedFlowerEvent>();
+    for (const event of [...this.localPublished, ...remote]) {
+      mergedById.set(event.id, event);
+    }
+
+    return Array.from(mergedById.values()).filter((event) => matchesFilter(event, filter));
   }
 
   async close(): Promise<void> {

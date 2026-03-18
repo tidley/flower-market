@@ -1,4 +1,4 @@
-import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
+import type { PublishedFlowerEvent, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
@@ -11,6 +11,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchRuntimeState(): Promise<RuntimeSnapshot> {
   return request<RuntimeSnapshot>('/api/state');
+}
+
+export function fetchPublishedEvents(): Promise<PublishedFlowerEvent[]> {
+  return request<PublishedFlowerEvent[]>('/api/events');
 }
 
 export function uploadBlob(blobId: string, content: string) {

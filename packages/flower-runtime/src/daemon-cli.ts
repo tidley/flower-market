@@ -27,7 +27,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
 
   const mintUrls = process.env.FLOWER_MINT_URLS
     ? process.env.FLOWER_MINT_URLS.split(',').map((s) => s.trim()).filter(Boolean)
-    : ['https://mint.minibits.cash/Bitcoin'];
+    : ['https://mint.minibits.cash'];
 
   const handle = await startFlowerDaemonServer({
     relayUrls,

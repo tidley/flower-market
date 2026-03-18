@@ -85,7 +85,7 @@ export class FlowerDaemon {
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
     this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls, 1500, config.forceKind1 ?? true) : new MemoryRelayTransport();
     this.payoutAdapter = new EcashPayoutAdapter({
-      mintUrls: config.mintUrls ?? ['https://mint.minibits.cash/Bitcoin'],
+      mintUrls: config.mintUrls ?? ['https://mint.minibits.cash'],
     });
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;

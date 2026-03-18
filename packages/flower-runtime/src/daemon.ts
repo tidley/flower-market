@@ -20,6 +20,7 @@ import type {
   RuntimeSigner,
   RuntimeSnapshot,
   RevealEventPayload,
+  SettlementEventPayload,
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
 
@@ -75,6 +76,7 @@ export class FlowerDaemon {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private publishedMessages: PublishedMessage[] = [];
+  private fundedMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -146,16 +148,26 @@ export class FlowerDaemon {
     return this.publishedMessages.slice().sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  addFunding(role: RuntimeIdentityView['role'], sats: number): void {
+    if (!Number.isFinite(sats) || sats <= 0) {
+      throw new Error('funding sats must be > 0');
+    }
+    const current = this.fundedMsatsByRole.get(role) ?? 0;
+    this.fundedMsatsByRole.set(role, current + Math.round(sats * 1000));
+  }
+
   async getSnapshot(): Promise<RuntimeSnapshot> {
     const events = await this.transport.list();
     const parsed = parseRuntimeEvents(events);
+    const identities = this.identities();
 
     return {
       updatedAt: Date.now(),
       relayMode: this.relayMode,
       relayUrls: this.relayUrls,
       blossomBaseUrl: this.blossomBaseUrl,
-      identities: this.identities(),
+      identities,
+      balances: this.buildBalances(identities, parsed.settlements),
       blobs: this.blossom.list(),
       challenges: buildChallengeViews(parsed),
       listings: buildMarketplaceViews(parsed),
@@ -455,6 +467,38 @@ export class FlowerDaemon {
         eligibility: deriveEligibilityState(verified, true, Math.floor(Date.now() / 1000), cooldownUntil),
       });
     }
+  }
+
+  private buildBalances(
+    identities: RuntimeIdentityView[],
+    settlements: PublishedFlowerEvent<SettlementEventPayload>[],
+  ): RuntimeSnapshot['balances'] {
+    const incomingByNpub = new Map<string, number>();
+    const outgoingByNpub = new Map<string, number>();
+    let primaryMint = 'https://mint.minibits.cash';
+
+    for (const settlement of settlements) {
+      for (const receipt of settlement.payload.payoutReceipts ?? []) {
+        incomingByNpub.set(receipt.responder, (incomingByNpub.get(receipt.responder) ?? 0) + receipt.amountMsats);
+        outgoingByNpub.set(this.owner.npub, (outgoingByNpub.get(this.owner.npub) ?? 0) + receipt.amountMsats);
+        primaryMint = receipt.mintUrl || primaryMint;
+      }
+    }
+
+    return identities.map((identity) => {
+      const fundedMsats = this.fundedMsatsByRole.get(identity.role) ?? 0;
+      const incomingMsats = incomingByNpub.get(identity.npub) ?? 0;
+      const outgoingMsats = outgoingByNpub.get(identity.npub) ?? 0;
+      return {
+        role: identity.role,
+        npub: identity.npub,
+        mintUrl: primaryMint,
+        fundedMsats,
+        incomingMsats,
+        outgoingMsats,
+        balanceMsats: fundedMsats + incomingMsats - outgoingMsats,
+      };
+    });
   }
 
   private identities(): RuntimeIdentityView[] {

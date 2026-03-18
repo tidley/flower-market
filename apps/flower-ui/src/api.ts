@@ -34,6 +34,14 @@ export function uploadBlob(blobId: string, content: string) {
   });
 }
 
+export function addFunding(role: 'owner' | 'provider' | 'provider2' | 'settler', sats: number) {
+  return request('/api/funding', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ role, sats }),
+  });
+}
+
 export function createChallenge(input: {
   blobId: string;
   payoutSchedule: [number, number, number];

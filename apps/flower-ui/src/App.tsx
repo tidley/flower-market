@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchPublishedMessages, fetchRuntimeState, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
+import { addFunding, createChallenge, fetchPublishedMessages, fetchRuntimeState, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -9,6 +9,7 @@ function emptySnapshot(): RuntimeSnapshot {
     relayUrls: [],
     blossomBaseUrl: '',
     identities: [],
+    balances: [],
     blobs: [],
     challenges: [],
     listings: [],
@@ -39,6 +40,8 @@ export function App() {
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
   const [publishedEvents, setPublishedEvents] = useState<PublishedMessage[]>([]);
+  const [fundRole, setFundRole] = useState<'owner' | 'provider' | 'provider2' | 'settler'>('owner');
+  const [fundSats, setFundSats] = useState('100');
 
   async function refreshState() {
     const [next, events] = await Promise.all([fetchRuntimeState(), fetchPublishedMessages()]);
@@ -208,6 +211,25 @@ export function App() {
               Open owner feed in jumble.social
             </a>
           </p>
+
+          <h3>Cashu Balances (mint.minibits.cash)</h3>
+          {snapshot.balances.map((b) => (
+            <div key={b.role} className="sub-row">
+              <span>{b.role}</span>
+              <span>{Math.round(b.balanceMsats / 1000)} sats</span>
+              <span className="muted">funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}</span>
+            </div>
+          ))}
+          <div className="dual" style={{ marginTop: 12 }}>
+            <select value={fundRole} onChange={(event) => setFundRole(event.target.value as 'owner' | 'provider' | 'provider2' | 'settler')}>
+              <option value="owner">owner</option>
+              <option value="provider">provider</option>
+              <option value="provider2">provider2</option>
+              <option value="settler">settler</option>
+            </select>
+            <input value={fundSats} onChange={(event) => setFundSats(event.target.value)} placeholder="sats" />
+            <button onClick={() => void run('add funding', () => addFunding(fundRole, Number(fundSats)))}>Add Funding</button>
+          </div>
 
           <h3>Quick Seed Blob</h3>
           <label>Seed Blob Id</label>

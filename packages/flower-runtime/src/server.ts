@@ -58,6 +58,13 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
         return;
       }
 
+      if (request.method === 'POST' && url.pathname === '/api/funding') {
+        const body = await readJson<{ role: 'owner' | 'provider' | 'provider2' | 'settler'; sats: number }>(request);
+        daemon.addFunding(body.role, body.sats);
+        json(response, 200, await daemon.getSnapshot());
+        return;
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/challenges') {
         const body = await readJson<{
           blobId: string;

@@ -226,12 +226,23 @@ export interface RuntimeIdentityView {
   cashuTestMnemonic?: string;
 }
 
+export interface RuntimeBalanceView {
+  role: RuntimeIdentityView['role'];
+  npub: string;
+  mintUrl: string;
+  fundedMsats: number;
+  incomingMsats: number;
+  outgoingMsats: number;
+  balanceMsats: number;
+}
+
 export interface RuntimeSnapshot {
   updatedAt: number;
   relayMode: 'memory' | 'nostr';
   relayUrls: string[];
   blossomBaseUrl: string;
   identities: RuntimeIdentityView[];
+  balances: RuntimeBalanceView[];
   blobs: BlossomFixture[];
   challenges: ChallengeRuntimeView[];
   listings: MarketplaceRuntimeView[];

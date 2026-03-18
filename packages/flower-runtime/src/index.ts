@@ -23,6 +23,7 @@ export type {
   RetrievedBlossomObject,
   RevealEventPayload,
   RuntimeIdentityView,
+  RuntimeBalanceView,
   RuntimeSnapshot,
   RuntimeSigner,
   SettlementEventPayload,

@@ -99,7 +99,7 @@ export class FlowerDaemon {
       config.provider2NwcUri
     ) {
       this.payoutAdapter = new NwcPayoutAdapter({
-        payer: { uri: config.challengerNwcUri },
+        payer: { uri: config.challengerNwcUri, npub: this.owner.npub },
         recipientsByNpub: {
           [this.provider.npub]: { uri: config.providerNwcUri },
           [this.provider2.npub]: { uri: config.provider2NwcUri },
@@ -191,7 +191,7 @@ export class FlowerDaemon {
       relayUrls: this.relayUrls,
       blossomBaseUrl: this.blossomBaseUrl,
       identities,
-      balances: this.buildBalances(identities, parsed.settlements),
+      balances: await this.buildBalances(identities, parsed.settlements),
       blobs: this.blossom.list(),
       challenges: buildChallengeViews(parsed),
       listings: buildMarketplaceViews(parsed),
@@ -493,10 +493,10 @@ export class FlowerDaemon {
     }
   }
 
-  private buildBalances(
+  private async buildBalances(
     identities: RuntimeIdentityView[],
     settlements: PublishedFlowerEvent<SettlementEventPayload>[],
-  ): RuntimeSnapshot['balances'] {
+  ): Promise<RuntimeSnapshot['balances']> {
     const incomingByNpub = new Map<string, number>();
     const outgoingByNpub = new Map<string, number>();
     let primaryMint = 'lightning:nwc';
@@ -509,10 +509,21 @@ export class FlowerDaemon {
       }
     }
 
+    let liveBalancesByNpub: Record<string, number> = {};
+    if (this.payoutAdapter instanceof NwcPayoutAdapter) {
+      try {
+        liveBalancesByNpub = await this.payoutAdapter.getBalanceMsatsByNpub();
+      } catch (error) {
+        console.warn('flower-runtime: failed to poll NWC balances', error);
+      }
+    }
+
     return identities.map((identity) => {
       const fundedMsats = this.fundedMsatsByRole.get(identity.role) ?? 0;
       const incomingMsats = incomingByNpub.get(identity.npub) ?? 0;
       const outgoingMsats = outgoingByNpub.get(identity.npub) ?? 0;
+      const runtimeBalance = fundedMsats + incomingMsats - outgoingMsats;
+      const liveBalance = liveBalancesByNpub[identity.npub];
       return {
         role: identity.role,
         npub: identity.npub,
@@ -520,7 +531,7 @@ export class FlowerDaemon {
         fundedMsats,
         incomingMsats,
         outgoingMsats,
-        balanceMsats: fundedMsats + incomingMsats - outgoingMsats,
+        balanceMsats: Number.isFinite(liveBalance) ? liveBalance : runtimeBalance,
       };
     });
   }

@@ -12,7 +12,7 @@ export interface NwcWalletConfig {
 }
 
 export interface NwcPayoutConfig {
-  payer: NwcWalletConfig;
+  payer: NwcWalletConfig & { npub: string };
   recipientsByNpub: Record<string, NwcWalletConfig>;
   timeoutMs?: number;
 }
@@ -30,11 +30,13 @@ export class NwcPayoutAdapter implements PayoutAdapter {
 
   private pool = new SimplePool();
   private payer: ParsedNwc;
+  private payerNpub: string;
   private recipientsByNpub: Record<string, ParsedNwc>;
   private timeoutMs: number;
 
   constructor(config: NwcPayoutConfig) {
     this.payer = parseNwcUri(config.payer.uri);
+    this.payerNpub = config.payer.npub;
     this.recipientsByNpub = Object.fromEntries(
       Object.entries(config.recipientsByNpub).map(([npub, wallet]) => [npub, parseNwcUri(wallet.uri)]),
     );
@@ -93,12 +95,41 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     return receipt.tokenRef.startsWith('payment_hash:') && receipt.amountMsats > 0;
   }
 
+  async getBalanceMsatsByNpub(): Promise<Record<string, number>> {
+    const entries: Array<[string, ParsedNwc]> = [
+      [this.payerNpub, this.payer],
+      ...Object.entries(this.recipientsByNpub),
+    ];
+
+    const balances: Record<string, number> = {};
+    for (const [npub, wallet] of entries) {
+      const msats = await this.fetchWalletBalanceMsats(wallet);
+      balances[npub] = msats;
+    }
+
+    return balances;
+  }
+
   async close(): Promise<void> {
     const relays = new Set<string>([
       this.payer.relay,
       ...Object.values(this.recipientsByNpub).map((wallet) => wallet.relay),
     ]);
     this.pool.close([...relays]);
+  }
+
+  private async fetchWalletBalanceMsats(wallet: ParsedNwc): Promise<number> {
+    try {
+      const balance = await this.request(wallet, 'get_balance', {});
+      const msats = coerceMsats(balance?.result);
+      if (msats !== null) return msats;
+    } catch {
+      // fallback below
+    }
+
+    const info = await this.request(wallet, 'get_info', {});
+    const msats = coerceMsats(info?.result);
+    return msats ?? 0;
   }
 
   private async request(wallet: ParsedNwc, method: string, params: Record<string, unknown>): Promise<any> {
@@ -150,6 +181,23 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     if (!Number.isFinite(request.amountMsats) || request.amountMsats <= 0) throw new Error('amountMsats must be > 0');
     if (!request.settlementRef) throw new Error('settlementRef is required');
   }
+}
+
+function coerceMsats(result: unknown): number | null {
+  if (!result || typeof result !== 'object') return null;
+  const rec = result as Record<string, unknown>;
+
+  if (typeof rec.balance_msat === 'number' && Number.isFinite(rec.balance_msat)) {
+    return Math.max(0, Math.round(rec.balance_msat));
+  }
+  if (typeof rec.balance === 'number' && Number.isFinite(rec.balance)) {
+    return Math.max(0, Math.round(rec.balance));
+  }
+  if (typeof rec.balance_sat === 'number' && Number.isFinite(rec.balance_sat)) {
+    return Math.max(0, Math.round(rec.balance_sat * 1000));
+  }
+
+  return null;
 }
 
 function parseNwcUri(uri: string): ParsedNwc {

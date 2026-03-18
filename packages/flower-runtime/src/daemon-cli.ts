@@ -25,6 +25,10 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     : (cliRelays.length > 0 ? cliRelays : (envRelays && envRelays.length > 0 ? envRelays : DEFAULT_RELAYS));
   const forceKind1 = process.env.FLOWER_FORCE_KIND1 ? process.env.FLOWER_FORCE_KIND1 !== 'false' : true;
 
+  const mintUrls = process.env.FLOWER_MINT_URLS
+    ? process.env.FLOWER_MINT_URLS.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['https://mint.minibits.cash/Bitcoin'];
+
   const handle = await startFlowerDaemonServer({
     relayUrls,
     forceKind1,
@@ -35,6 +39,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     providerSecretKeyHex: process.env.FLOWER_PROVIDER_SK,
     provider2SecretKeyHex: process.env.FLOWER_PROVIDER2_SK,
     settlerSecretKeyHex: process.env.FLOWER_SETTLER_SK,
+    mintUrls,
   });
 
   console.log(

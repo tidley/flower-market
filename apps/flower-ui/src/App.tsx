@@ -307,7 +307,7 @@ export function App() {
                     <div key={r.payoutId} className="sub-row">
                       <span>{r.responder.slice(0, 16)}…</span>
                       <span>{r.amountMsats} msat</span>
-                      <span>{r.mintUrl}</span>
+                      <span>{r.tokenRef}</span>
                     </div>
                   ))
                 )}

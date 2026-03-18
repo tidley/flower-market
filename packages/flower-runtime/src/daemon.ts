@@ -499,7 +499,7 @@ export class FlowerDaemon {
   ): RuntimeSnapshot['balances'] {
     const incomingByNpub = new Map<string, number>();
     const outgoingByNpub = new Map<string, number>();
-    let primaryMint = 'https://mint.minibits.cash';
+    let primaryMint = 'lightning:nwc';
 
     for (const settlement of settlements) {
       for (const receipt of settlement.payload.payoutReceipts ?? []) {
@@ -549,3 +549,4 @@ export class FlowerDaemon {
     ];
   }
 }
+

@@ -103,8 +103,13 @@ export class NwcPayoutAdapter implements PayoutAdapter {
 
     const balances: Record<string, number> = {};
     for (const [npub, wallet] of entries) {
-      const msats = await this.fetchWalletBalanceMsats(wallet);
-      balances[npub] = msats;
+      try {
+        const msats = await this.fetchWalletBalanceMsats(wallet);
+        balances[npub] = msats;
+      } catch (error) {
+        // Keep daemon healthy even if one wallet/relay is slow.
+        console.warn(`flower-runtime: NWC balance poll failed for ${npub.slice(0, 12)}…`, error);
+      }
     }
 
     return balances;

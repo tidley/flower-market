@@ -28,6 +28,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
   const mintUrls = process.env.FLOWER_MINT_URLS
     ? process.env.FLOWER_MINT_URLS.split(',').map((s) => s.trim()).filter(Boolean)
     : ['https://mint.minibits.cash'];
+  const payoutMode = process.env.FLOWER_PAYOUT_MODE === 'lightning' ? 'lightning' : 'ecash';
 
   const handle = await startFlowerDaemonServer({
     relayUrls,
@@ -40,6 +41,10 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     provider2SecretKeyHex: process.env.FLOWER_PROVIDER2_SK,
     settlerSecretKeyHex: process.env.FLOWER_SETTLER_SK,
     mintUrls,
+    payoutMode,
+    challengerNwcUri: process.env.FLOWER_CHALLENGER_NWC,
+    providerNwcUri: process.env.FLOWER_SP1_NWC,
+    provider2NwcUri: process.env.FLOWER_SP2_NWC,
   });
 
   console.log(
@@ -49,6 +54,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
         blossomBaseUrl: handle.daemon.getBlossomBaseUrl(),
         relayMode: handle.daemon.relayMode,
         relayUrls: handle.daemon.relayUrls,
+        payoutMode,
       },
       null,
       2,

@@ -1,8 +1,9 @@
 import { deriveEligibilityState, verifyTransferProof } from '../../flower-contextvm/src/index.ts';
-import { EcashPayoutAdapter } from '../../flower-payout/src/index.ts';
+import { EcashPayoutAdapter, type PayoutAdapter } from '../../flower-payout/src/index.ts';
 import { finalizeEvent, SimplePool } from 'nostr-tools';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
 import { buildCommitHash, createRuntimeSigner, randomId } from './crypto.ts';
+import { NwcPayoutAdapter } from './nwcPayout.ts';
 import { MemoryRelayTransport, NostrRelayTransport } from './relay.ts';
 import { buildChallengeViews, buildMarketplaceViews, parseRuntimeEvents } from './snapshot.ts';
 import { settlePublishedChallenge } from './runtime.ts';
@@ -43,6 +44,10 @@ export interface FlowerDaemonConfig {
   provider2SecretKeyHex?: string;
   settlerSecretKeyHex?: string;
   mintUrls?: string[];
+  payoutMode?: 'ecash' | 'lightning';
+  challengerNwcUri?: string;
+  providerNwcUri?: string;
+  provider2NwcUri?: string;
 }
 
 type PublishedMessage = {
@@ -70,7 +75,7 @@ export class FlowerDaemon {
 
   private blossom: DummyBlossomServer;
   private transport: RelayTransport;
-  private payoutAdapter: EcashPayoutAdapter;
+  private payoutAdapter: PayoutAdapter;
   private blossomBaseUrl = '';
   private syncIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
@@ -86,9 +91,25 @@ export class FlowerDaemon {
     this.relayUrls = config.relayUrls ?? [];
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
     this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls, 1500, config.forceKind1 ?? true) : new MemoryRelayTransport();
-    this.payoutAdapter = new EcashPayoutAdapter({
-      mintUrls: config.mintUrls ?? ['https://mint.minibits.cash'],
-    });
+
+    if (
+      config.payoutMode === 'lightning' &&
+      config.challengerNwcUri &&
+      config.providerNwcUri &&
+      config.provider2NwcUri
+    ) {
+      this.payoutAdapter = new NwcPayoutAdapter({
+        payer: { uri: config.challengerNwcUri },
+        recipientsByNpub: {
+          [this.provider.npub]: { uri: config.providerNwcUri },
+          [this.provider2.npub]: { uri: config.provider2NwcUri },
+        },
+      });
+    } else {
+      this.payoutAdapter = new EcashPayoutAdapter({
+        mintUrls: config.mintUrls ?? ['https://mint.minibits.cash'],
+      });
+    }
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
   }
@@ -115,6 +136,9 @@ export class FlowerDaemon {
     }
 
     await this.transport.close();
+    if ('close' in this.payoutAdapter && typeof this.payoutAdapter.close === 'function') {
+      await this.payoutAdapter.close();
+    }
     await this.blossom.stop();
   }
 

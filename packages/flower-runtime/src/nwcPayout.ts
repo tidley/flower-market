@@ -153,14 +153,24 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     while (Date.now() < timeoutAt) {
       const responses = await this.pool.querySync(
         [wallet.relay],
-        { kinds: [NWC_RESPONSE_KIND], authors: [wallet.walletPubkey], '#e': [reqEvent.id], since: createdAt - 3, limit: 20 } as any,
+        { kinds: [NWC_RESPONSE_KIND], since: createdAt - 10, limit: 100 } as any,
         { maxWait: 1200 },
       );
 
-      for (const response of responses) {
+      for (const response of responses.sort((a, b) => b.created_at - a.created_at)) {
         try {
+          const hasReqTag = Array.isArray(response.tags)
+            && response.tags.some((tag) => Array.isArray(tag) && tag[0] === 'e' && tag[1] === reqEvent.id);
+          if (!hasReqTag) {
+            continue;
+          }
+
           const decrypted = await decrypt(wallet.secretHex, wallet.walletPubkey, response.content);
           const decoded = JSON.parse(decrypted);
+          const resultType = decoded?.result_type as string | undefined;
+          if (resultType && resultType !== method) {
+            continue;
+          }
           if (decoded.error) {
             throw new Error(typeof decoded.error === 'string' ? decoded.error : JSON.stringify(decoded.error));
           }

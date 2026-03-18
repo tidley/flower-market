@@ -107,7 +107,7 @@ export class FlowerDaemon {
       });
     } else {
       this.payoutAdapter = new EcashPayoutAdapter({
-        mintUrls: config.mintUrls ?? ['https://mint.minibits.cash'],
+        mintUrls: config.mintUrls ?? ['https://mint.example'],
       });
     }
     this.blossom = new DummyBlossomServer();

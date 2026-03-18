@@ -212,7 +212,7 @@ export function App() {
             </a>
           </p>
 
-          <h3>Cashu Balances (mint.minibits.cash)</h3>
+          <h3>Lightning Balances (NWC)</h3>
           {snapshot.balances.map((b) => (
             <div key={b.role} className="sub-row">
               <span>{b.role}</span>

@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
-import type { PublishedFlowerEvent, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchPublishedEvents, fetchRuntimeState, respondToChallenge, uploadBlob } from './api';
+import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
+import { createChallenge, fetchPublishedMessages, fetchRuntimeState, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -38,10 +38,10 @@ export function App() {
   const [challengeBlobId, setChallengeBlobId] = useState('');
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
-  const [publishedEvents, setPublishedEvents] = useState<PublishedFlowerEvent[]>([]);
+  const [publishedEvents, setPublishedEvents] = useState<PublishedMessage[]>([]);
 
   async function refreshState() {
-    const [next, events] = await Promise.all([fetchRuntimeState(), fetchPublishedEvents()]);
+    const [next, events] = await Promise.all([fetchRuntimeState(), fetchPublishedMessages()]);
     startTransition(() => {
       setSnapshot(next);
       setPublishedEvents(events.slice().sort((a, b) => b.createdAt - a.createdAt));
@@ -297,17 +297,22 @@ export function App() {
           {publishedEvents.length === 0 ? (
             <p className="muted">No published Flower messages yet.</p>
           ) : (
-            publishedEvents.slice(0, 20).map((event) => (
-              <div key={event.id} className="result-card">
-                <div className="result-head">
-                  <strong>{event.payload.type}</strong>
-                  <span className="badge">kind {event.kind}</span>
+            publishedEvents.slice(0, 30).map((event) => {
+              const tagMap = new Map(event.tags.map((t) => [t[0], t[1]]));
+              const eventType = tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
+              return (
+                <div key={event.id} className="result-card">
+                  <div className="result-head">
+                    <strong>{eventType}</strong>
+                    <span className="badge">kind {event.kind}</span>
+                  </div>
+                  <div className="sub-row"><span>id</span><code>{event.id}</code></div>
+                  <div className="sub-row"><span>time</span><span>{fmtTs(event.createdAt)}</span></div>
+                  <div className="sub-row"><span>author</span><code>{event.pubkey.slice(0, 16)}…</code></div>
+                  <div className="sub-row"><span>content</span><code style={{whiteSpace:'normal'}}>{event.content}</code></div>
                 </div>
-                <div className="sub-row"><span>id</span><code>{event.id}</code></div>
-                <div className="sub-row"><span>time</span><span>{fmtTs(event.createdAt)}</span></div>
-                <div className="sub-row"><span>author</span><code>{event.pubkey.slice(0, 16)}…</code></div>
-              </div>
-            ))
+              );
+            })
           )}
         </section>
       )}

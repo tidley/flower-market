@@ -44,6 +44,15 @@ export interface FlowerDaemonConfig {
   mintUrls?: string[];
 }
 
+type PublishedMessage = {
+  id: string;
+  kind: number;
+  pubkey: string;
+  createdAt: number;
+  content: string;
+  tags: string[][];
+};
+
 export class FlowerDaemon {
   readonly owner: RuntimeSigner;
   readonly provider: RuntimeSigner;
@@ -59,6 +68,7 @@ export class FlowerDaemon {
   private syncIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
+  private publishedMessages: PublishedMessage[] = [];
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -124,6 +134,10 @@ export class FlowerDaemon {
     return this.transport.list(filter);
   }
 
+  getPublishedMessages(): PublishedMessage[] {
+    return this.publishedMessages.slice().sort((a, b) => b.createdAt - a.createdAt);
+  }
+
   async getSnapshot(): Promise<RuntimeSnapshot> {
     const events = await this.transport.list();
     const parsed = parseRuntimeEvents(events);
@@ -168,7 +182,13 @@ export class FlowerDaemon {
       reliabilityBonusMsats: input.reliabilityBonusMsats,
     });
 
-    await this.publishChallengeNote(event);
+    const challengeNoteId = await this.publishChallengeNote(event);
+
+    const sp1 = await this.respondToChallenge(event.payload.challengeId, 'provider');
+    const sp2 = await this.respondToChallenge(event.payload.challengeId, 'provider2');
+    await this.publishProofReplyNote(event, challengeNoteId, 'provider', sp1.reveal, sp1.commit);
+    await this.publishProofReplyNote(event, challengeNoteId, 'provider2', sp2.reveal, sp2.commit);
+
     return event;
   }
 
@@ -291,27 +311,93 @@ export class FlowerDaemon {
     });
   }
 
-  private async publishChallengeNote(challenge: PublishedFlowerEvent<ChallengeEventPayload>): Promise<void> {
-    if (this.relayMode !== 'nostr' || this.relayUrls.length === 0) return;
+  private async publishChallengeNote(challenge: PublishedFlowerEvent<ChallengeEventPayload>): Promise<string | null> {
+    const note = await this.publishKind1Note(this.owner, [
+      ['t', 'flower-market'],
+      ['t', 'challenge'],
+      ['c', challenge.payload.challengeId],
+      ['r', challenge.payload.contentRef],
+    ], `Flower challenge ${challenge.payload.challengeId} posted for ${challenge.payload.contentRef}; commit by ${challenge.payload.commitDeadline}, reveal by ${challenge.payload.revealDeadline}.`);
+
+    return note?.id ?? null;
+  }
+
+  private async publishProofReplyNote(
+    challenge: PublishedFlowerEvent<ChallengeEventPayload>,
+    challengeNoteId: string | null,
+    providerRole: 'provider' | 'provider2',
+    reveal: PublishedFlowerEvent<RevealEventPayload>,
+    commit: PublishedFlowerEvent<CommitEventPayload>,
+  ): Promise<void> {
+    const signer = providerRole === 'provider2' ? this.provider2 : this.provider;
+    const revealSig = this.rawEventSig(reveal.raw);
+
+    const tags: string[][] = [
+      ['t', 'flower-market'],
+      ['t', 'proof-reply'],
+      ['c', challenge.payload.challengeId],
+      ['p', this.owner.publicKey],
+      ['e', challenge.id],
+      ['e', reveal.id],
+      ['e', commit.id],
+    ];
+    if (challengeNoteId) {
+      tags.push(['e', challengeNoteId, '', 'reply']);
+    }
+
+    const content = JSON.stringify({
+      kind: 'flower-proof-reply',
+      challengeId: challenge.payload.challengeId,
+      responder: signer.npub,
+      responderPubkey: signer.publicKey,
+      revealEventId: reveal.id,
+      commitEventId: commit.id,
+      revealSig,
+      merkleRoot: challenge.payload.merkleRoot,
+      contentRef: challenge.payload.contentRef,
+      revealTs: reveal.payload.revealTs,
+      commitTs: commit.payload.commitTs,
+      latencyMs: reveal.payload.latencyMs,
+      reliabilityScore: reveal.payload.reliabilityScore,
+    });
+
+    await this.publishKind1Note(signer, tags, content);
+  }
+
+  private rawEventSig(raw: unknown): string | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const maybeSig = (raw as { sig?: unknown }).sig;
+    return typeof maybeSig === 'string' ? maybeSig : null;
+  }
+
+  private async publishKind1Note(signer: RuntimeSigner, tags: string[][], content: string): Promise<PublishedMessage | null> {
+    const note = finalizeEvent(
+      {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content,
+      },
+      signer.secretKey,
+    );
+
+    this.publishedMessages.push({
+      id: note.id,
+      kind: note.kind,
+      pubkey: note.pubkey,
+      createdAt: note.created_at,
+      content: note.content,
+      tags: note.tags as string[][],
+    });
+
+    if (this.relayMode !== 'nostr' || this.relayUrls.length === 0) {
+      return this.publishedMessages[this.publishedMessages.length - 1] ?? null;
+    }
 
     const pool = new SimplePool();
     try {
-      const note = finalizeEvent(
-        {
-          kind: 1,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ['t', 'flower-market'],
-            ['t', 'challenge'],
-            ['c', challenge.payload.challengeId],
-            ['r', challenge.payload.contentRef],
-          ],
-          content: `Flower challenge ${challenge.payload.challengeId} posted for ${challenge.payload.contentRef}; commit by ${challenge.payload.commitDeadline}, reveal by ${challenge.payload.revealDeadline}.`,
-        },
-        this.owner.secretKey,
-      );
-
       await Promise.allSettled(pool.publish(this.relayUrls, note));
+      return this.publishedMessages[this.publishedMessages.length - 1] ?? null;
     } finally {
       pool.close(this.relayUrls);
     }

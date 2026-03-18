@@ -309,7 +309,7 @@ export function App() {
                   <div className="sub-row"><span>id</span><code>{event.id}</code></div>
                   <div className="sub-row"><span>time</span><span>{fmtTs(event.createdAt)}</span></div>
                   <div className="sub-row"><span>author</span><code>{event.pubkey.slice(0, 16)}…</code></div>
-                  <div className="sub-row"><span>content</span><code style={{whiteSpace:'normal'}}>{event.content}</code></div>
+                  <div className="sub-row"><span>content</span><code className="content-wrap">{event.content}</code></div>
                 </div>
               );
             })

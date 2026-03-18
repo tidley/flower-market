@@ -143,6 +143,14 @@ pre{
   overflow:auto;
 }
 
+.content-wrap{
+  display:inline-block;
+  max-width:100%;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
 @media (max-width: 980px){
   .hero,.identity-strip,.workspace-grid,.results-grid,.dual,.triple{
     grid-template-columns:1fr;

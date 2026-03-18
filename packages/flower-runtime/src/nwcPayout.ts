@@ -1,11 +1,8 @@
-import { hexToBytes } from '@noble/hashes/utils';
-import { getPublicKey, finalizeEvent, SimplePool } from 'nostr-tools';
-import { decrypt, encrypt } from 'nostr-tools/nip04';
+import 'websocket-polyfill';
+
+import { NWCClient } from '@getalby/sdk/nwc';
 
 import type { PayoutAdapter, PayoutQuote, PayoutReceipt, PayoutRequest } from '../../flower-payout/src/index.ts';
-
-const NWC_REQUEST_KIND = 23194;
-const NWC_RESPONSE_KIND = 23195;
 
 export interface NwcWalletConfig {
   uri: string;
@@ -14,44 +11,35 @@ export interface NwcWalletConfig {
 export interface NwcPayoutConfig {
   payer: NwcWalletConfig & { npub: string };
   recipientsByNpub: Record<string, NwcWalletConfig>;
-  timeoutMs?: number;
 }
 
-type ParsedNwc = {
-  walletPubkey: string;
-  relay: string;
-  secretHex: string;
-  secretBytes: Uint8Array;
-  clientPubkey: string;
+type WalletEntry = {
+  npub: string;
+  client: NWCClient;
 };
 
 export class NwcPayoutAdapter implements PayoutAdapter {
   readonly kind = 'lightning' as const;
 
-  private pool = new SimplePool();
-  private payer: ParsedNwc;
   private payerNpub: string;
-  private recipientsByNpub: Record<string, ParsedNwc>;
-  private timeoutMs: number;
+  private payerClient: NWCClient;
+  private recipientsByNpub: Record<string, NWCClient>;
 
   constructor(config: NwcPayoutConfig) {
-    this.payer = parseNwcUri(config.payer.uri);
     this.payerNpub = config.payer.npub;
+    this.payerClient = new NWCClient({ nostrWalletConnectUrl: config.payer.uri });
     this.recipientsByNpub = Object.fromEntries(
-      Object.entries(config.recipientsByNpub).map(([npub, wallet]) => [npub, parseNwcUri(wallet.uri)]),
+      Object.entries(config.recipientsByNpub).map(([npub, wallet]) => [npub, new NWCClient({ nostrWalletConnectUrl: wallet.uri })]),
     );
-    this.timeoutMs = config.timeoutMs ?? 15_000;
   }
 
   async quote(request: PayoutRequest): Promise<PayoutQuote> {
     this.validateRequest(request);
     const recipient = this.recipientsByNpub[request.recipientNpub];
-    if (!recipient) {
-      throw new Error(`No NWC recipient mapping for ${request.recipientNpub}`);
-    }
+    if (!recipient) throw new Error(`No NWC recipient mapping for ${request.recipientNpub}`);
 
     return {
-      mintUrl: `nwc:${recipient.relay}`,
+      mintUrl: 'lightning:nwc',
       amountMsats: request.amountMsats,
       feeMsats: 0,
       totalMsats: request.amountMsats,
@@ -60,30 +48,30 @@ export class NwcPayoutAdapter implements PayoutAdapter {
 
   async execute(request: PayoutRequest): Promise<PayoutReceipt> {
     this.validateRequest(request);
-    const receiver = this.recipientsByNpub[request.recipientNpub];
-    if (!receiver) {
-      throw new Error(`No NWC recipient mapping for ${request.recipientNpub}`);
-    }
 
-    const invoiceRes = await this.request(receiver, 'make_invoice', {
+    const recipientClient = this.recipientsByNpub[request.recipientNpub];
+    if (!recipientClient) throw new Error(`No NWC recipient mapping for ${request.recipientNpub}`);
+
+    const invoiceResponse = await recipientClient.makeInvoice({
       amount: request.amountMsats,
       description: request.memo ?? `Flower payout ${request.settlementRef}`,
-    });
-    const invoice = invoiceRes?.result?.invoice as string | undefined;
-    if (!invoice) {
+    } as any);
+
+    const invoice = (invoiceResponse as any)?.invoice;
+    if (!invoice || typeof invoice !== 'string') {
       throw new Error(`NWC make_invoice did not return invoice for ${request.recipientNpub}`);
     }
 
-    const payRes = await this.request(this.payer, 'pay_invoice', { invoice });
+    const paymentResponse = await this.payerClient.payInvoice({ invoice } as any);
     const paymentHash =
-      (payRes?.result?.payment_hash as string | undefined) ||
-      (payRes?.result?.preimage as string | undefined) ||
+      (paymentResponse as any)?.payment_hash ||
+      (paymentResponse as any)?.preimage ||
       `unknown_${Date.now()}`;
 
     return {
       id: `nwc_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       recipientNpub: request.recipientNpub,
-      mintUrl: `nwc:${this.payer.relay}`,
+      mintUrl: 'lightning:nwc',
       amountMsats: request.amountMsats,
       tokenRef: `payment_hash:${paymentHash}`,
       settlementRef: request.settlementRef,
@@ -96,19 +84,18 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   }
 
   async getBalanceMsatsByNpub(): Promise<Record<string, number>> {
-    const entries: Array<[string, ParsedNwc]> = [
-      [this.payerNpub, this.payer],
-      ...Object.entries(this.recipientsByNpub),
+    const wallets: WalletEntry[] = [
+      { npub: this.payerNpub, client: this.payerClient },
+      ...Object.entries(this.recipientsByNpub).map(([npub, client]) => ({ npub, client })),
     ];
 
     const balances: Record<string, number> = {};
-    for (const [npub, wallet] of entries) {
+    for (const wallet of wallets) {
       try {
-        const msats = await this.fetchWalletBalanceMsats(wallet);
-        balances[npub] = msats;
+        const msats = await this.fetchBalanceMsats(wallet.client);
+        balances[wallet.npub] = msats;
       } catch (error) {
-        // Keep daemon healthy even if one wallet/relay is slow.
-        console.warn(`flower-runtime: NWC balance poll failed for ${npub.slice(0, 12)}…`, error);
+        console.warn(`flower-runtime: NWC balance poll failed for ${wallet.npub.slice(0, 12)}…`, error);
       }
     }
 
@@ -116,79 +103,29 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   }
 
   async close(): Promise<void> {
-    const relays = new Set<string>([
-      this.payer.relay,
-      ...Object.values(this.recipientsByNpub).map((wallet) => wallet.relay),
-    ]);
-    this.pool.close([...relays]);
+    try {
+      this.payerClient.close();
+    } catch {}
+
+    for (const client of Object.values(this.recipientsByNpub)) {
+      try {
+        client.close();
+      } catch {}
+    }
   }
 
-  private async fetchWalletBalanceMsats(wallet: ParsedNwc): Promise<number> {
+  private async fetchBalanceMsats(client: NWCClient): Promise<number> {
     try {
-      const balance = await this.request(wallet, 'get_balance', {});
-      const msats = coerceMsats(balance?.result);
+      const balance = await client.getBalance();
+      const msats = coerceMsats(balance as Record<string, unknown>);
       if (msats !== null) return msats;
     } catch {
-      // fallback below
+      // fallback to getInfo
     }
 
-    const info = await this.request(wallet, 'get_info', {});
-    const msats = coerceMsats(info?.result);
+    const info = await client.getInfo();
+    const msats = coerceMsats(info as Record<string, unknown>);
     return msats ?? 0;
-  }
-
-  private async request(wallet: ParsedNwc, method: string, params: Record<string, unknown>): Promise<any> {
-    const createdAt = Math.floor(Date.now() / 1000);
-    const payload = JSON.stringify({ method, params });
-    const encrypted = await encrypt(wallet.secretHex, wallet.walletPubkey, payload);
-
-    const reqEvent = finalizeEvent(
-      {
-        kind: NWC_REQUEST_KIND,
-        created_at: createdAt,
-        tags: [['p', wallet.walletPubkey]],
-        content: encrypted,
-      },
-      wallet.secretBytes,
-    );
-
-    await Promise.allSettled(this.pool.publish([wallet.relay], reqEvent));
-
-    const timeoutAt = Date.now() + this.timeoutMs;
-    while (Date.now() < timeoutAt) {
-      const responses = await this.pool.querySync(
-        [wallet.relay],
-        { kinds: [NWC_RESPONSE_KIND], since: createdAt - 10, limit: 100 } as any,
-        { maxWait: 1200 },
-      );
-
-      for (const response of responses.sort((a, b) => b.created_at - a.created_at)) {
-        try {
-          const hasReqTag = Array.isArray(response.tags)
-            && response.tags.some((tag) => Array.isArray(tag) && tag[0] === 'e' && tag[1] === reqEvent.id);
-          if (!hasReqTag) {
-            continue;
-          }
-
-          const decrypted = await decrypt(wallet.secretHex, wallet.walletPubkey, response.content);
-          const decoded = JSON.parse(decrypted);
-          const resultType = decoded?.result_type as string | undefined;
-          if (resultType && resultType !== method) {
-            continue;
-          }
-          if (decoded.error) {
-            throw new Error(typeof decoded.error === 'string' ? decoded.error : JSON.stringify(decoded.error));
-          }
-          return decoded;
-        } catch {
-          // keep looking; relays may return unrelated payloads
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    throw new Error(`NWC ${method} timed out via ${wallet.relay}`);
   }
 
   private validateRequest(request: PayoutRequest): void {
@@ -198,50 +135,16 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   }
 }
 
-function coerceMsats(result: unknown): number | null {
+function coerceMsats(result: Record<string, unknown> | null | undefined): number | null {
   if (!result || typeof result !== 'object') return null;
-  const rec = result as Record<string, unknown>;
-
-  if (typeof rec.balance_msat === 'number' && Number.isFinite(rec.balance_msat)) {
-    return Math.max(0, Math.round(rec.balance_msat));
+  if (typeof result.balance_msat === 'number' && Number.isFinite(result.balance_msat)) {
+    return Math.max(0, Math.round(result.balance_msat));
   }
-  if (typeof rec.balance === 'number' && Number.isFinite(rec.balance)) {
-    return Math.max(0, Math.round(rec.balance));
+  if (typeof result.balance === 'number' && Number.isFinite(result.balance)) {
+    return Math.max(0, Math.round(result.balance));
   }
-  if (typeof rec.balance_sat === 'number' && Number.isFinite(rec.balance_sat)) {
-    return Math.max(0, Math.round(rec.balance_sat * 1000));
+  if (typeof result.balance_sat === 'number' && Number.isFinite(result.balance_sat)) {
+    return Math.max(0, Math.round(result.balance_sat * 1000));
   }
-
   return null;
-}
-
-function parseNwcUri(uri: string): ParsedNwc {
-  const parsed = new URL(uri);
-  if (parsed.protocol !== 'nostr+walletconnect:') {
-    throw new Error('NWC URI must use nostr+walletconnect://');
-  }
-
-  const walletPubkey = parsed.hostname;
-  const relay = parsed.searchParams.get('relay');
-  const secretHex = parsed.searchParams.get('secret');
-  if (!walletPubkey || walletPubkey.length !== 64) {
-    throw new Error('NWC URI missing valid wallet pubkey');
-  }
-  if (!relay) {
-    throw new Error('NWC URI missing relay');
-  }
-  if (!secretHex || secretHex.length !== 64) {
-    throw new Error('NWC URI missing valid secret');
-  }
-
-  const secretBytes = hexToBytes(secretHex);
-  const clientPubkey = getPublicKey(secretBytes);
-
-  return {
-    walletPubkey,
-    relay,
-    secretHex,
-    secretBytes,
-    clientPubkey,
-  };
 }

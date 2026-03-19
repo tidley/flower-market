@@ -163,6 +163,36 @@ export function App() {
 
   const latestRound = recentSettlements[0] ?? null;
 
+  const balanceView = useMemo(() => {
+    const toRow = (role: string) => {
+      const b = snapshot.balances.find((entry) => entry.role === role);
+      if (!b) return null;
+      const balance = Math.round(b.balanceMsats / 1000);
+      const activity = {
+        funded: Math.round(b.fundedMsats / 1000),
+        in: Math.round(b.incomingMsats / 1000),
+        out: Math.round(b.outgoingMsats / 1000),
+      };
+      return { role, label: participantLabel(role), balance, activity };
+    };
+
+    const owner = toRow('owner');
+    const providers = ['provider3', 'provider', 'provider2']
+      .map((role) => toRow(role))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .sort((a, b) => b.balance - a.balance);
+    const stall = toRow('settler');
+
+    const maxBalance = Math.max(0, owner?.balance ?? 0, ...providers.map((row) => row.balance));
+
+    return {
+      owner,
+      providers,
+      stall,
+      maxBalance,
+    };
+  }, [snapshot.balances]);
+
   const spRows = useMemo(() => {
     const providerNpub = provider?.npub ?? 'unknown-provider';
     const provider2Npub = provider2?.npub ?? 'unknown-provider2';
@@ -256,18 +286,67 @@ export function App() {
         </div>
       </section>
 
-      <section className="panel" style={{ marginBottom: 16 }}>
+      <section className="panel balance-panel" style={{ marginBottom: 16 }}>
         <h2>Participant Balances</h2>
-        {snapshot.balances.map((b) => (
-          <div key={b.role} className="sub-row">
-            <span>{participantLabel(b.role)}</span>
-            <span>{Math.round(b.balanceMsats / 1000)} sats</span>
-            <span className="muted">
-              funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} /
-              out {Math.round(b.outgoingMsats / 1000)}
+        <div className="balance-table-head">
+          <span>Participant</span>
+          <span>Balance (sats)</span>
+          <span>Bar</span>
+          <span>Activity</span>
+        </div>
+
+        {balanceView.owner && (
+          <div className="balance-row owner-row" key={balanceView.owner.role}>
+            <span className="participant">{balanceView.owner.label}</span>
+            <span className="balance-num">{balanceView.owner.balance}</span>
+            <span className="bar-cell">
+              <span className="bar-track">
+                <span
+                  className="bar-fill"
+                  style={{ width: `${balanceView.maxBalance > 0 ? (balanceView.owner.balance / balanceView.maxBalance) * 100 : 0}%` }}
+                />
+              </span>
+            </span>
+            <span className="activity">
+              {balanceView.owner.activity.funded === 0 && balanceView.owner.activity.in === 0 && balanceView.owner.activity.out === 0
+                ? '—'
+                : `F${balanceView.owner.activity.funded} I${balanceView.owner.activity.in} O${balanceView.owner.activity.out}`}
+            </span>
+          </div>
+        )}
+
+        <p className="balance-section">• Storage Providers</p>
+        {balanceView.providers.map((row) => (
+          <div className="balance-row" key={row.role}>
+            <span className="participant">{row.label}</span>
+            <span className="balance-num">{row.balance}</span>
+            <span className="bar-cell">
+              <span className="bar-track">
+                <span
+                  className="bar-fill"
+                  style={{ width: `${balanceView.maxBalance > 0 ? (row.balance / balanceView.maxBalance) * 100 : 0}%` }}
+                />
+              </span>
+            </span>
+            <span className="activity">
+              {row.activity.funded === 0 && row.activity.in === 0 && row.activity.out === 0
+                ? '—'
+                : `F${row.activity.funded} I${row.activity.in} O${row.activity.out}`}
             </span>
           </div>
         ))}
+
+        <p className="balance-section">• Stall</p>
+        {balanceView.stall && (
+          <div className="balance-row inactive-row" key={balanceView.stall.role}>
+            <span className="participant">{balanceView.stall.label}</span>
+            <span className="balance-num">{balanceView.stall.balance}</span>
+            <span className="bar-cell">
+              <span className="bar-track" />
+            </span>
+            <span className="activity">—</span>
+          </div>
+        )}
       </section>
 
       {(view === 'all' || view === 'challenger') && (

@@ -101,6 +101,8 @@ export class FlowerDaemon {
   private nwcBalancePolling = true;
   private ignoreRelayHistory = false;
   private startedAtSec = Math.floor(Date.now() / 1000);
+  private sessionChallengeIds = new Set<string>();
+  private sessionListingIds = new Set<string>();
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -203,7 +205,23 @@ export class FlowerDaemon {
   private async listEvents(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
     const events = await this.transport.list(filter);
     if (!this.ignoreRelayHistory) return events;
-    return events.filter((event) => event.createdAt >= this.startedAtSec);
+
+    return events.filter((event) => {
+      if (event.createdAt < this.startedAtSec) return false;
+
+      const payload = event.payload as unknown as Record<string, unknown>;
+      const type = typeof payload.type === 'string' ? payload.type : undefined;
+      const challengeId = typeof payload.challengeId === 'string' ? payload.challengeId : undefined;
+      const listingId = typeof payload.listingId === 'string' ? payload.listingId : undefined;
+
+      if (challengeId) return this.sessionChallengeIds.has(challengeId);
+      if (listingId) return this.sessionListingIds.has(listingId);
+
+      if (type === 'challenge' || type === 'commit' || type === 'reveal' || type === 'settlement') return false;
+      if (type?.startsWith('market.')) return false;
+
+      return true;
+    });
   }
 
   getPublishedMessages(): PublishedMessage[] {
@@ -269,6 +287,7 @@ export class FlowerDaemon {
       payoutSchedule: input.payoutSchedule,
       reliabilityBonusMsats: input.reliabilityBonusMsats,
     });
+    this.sessionChallengeIds.add(event.payload.challengeId);
 
     const challengeNoteId = await this.publishChallengeNote(event);
 
@@ -338,7 +357,7 @@ export class FlowerDaemon {
   }): Promise<PublishedFlowerEvent<MarketListingEventPayload>> {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
 
-    return this.transport.publish(this.owner, {
+    const event = await this.transport.publish(this.owner, {
       type: 'market.listing',
       listingId: randomId('lst'),
       seller: this.owner.npub,
@@ -350,6 +369,8 @@ export class FlowerDaemon {
         cooldownSeconds: input.cooldownSeconds,
       },
     });
+    this.sessionListingIds.add(event.payload.listingId);
+    return event;
   }
 
   async publishOffer(listingId: string): Promise<PublishedFlowerEvent<MarketOfferEventPayload>> {

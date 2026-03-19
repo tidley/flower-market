@@ -205,26 +205,43 @@ export function App() {
     <div className="page-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Flower Market Demo Control</p>
-          <h1>Challenger + 3x SP windows</h1>
+          <h1>Flower Market</h1>
           <p>
-            Quick links:
-            {' '}
-            <a href="/?view=challenger" target="_blank" rel="noreferrer">Challenger</a>
+            Quick links:{' '}
+            <a href="/?view=challenger" target="_blank" rel="noreferrer">
+              Challenger
+            </a>
             {' • '}
-            <a href="/?view=sp1" target="_blank" rel="noreferrer">SP1</a>
+            <a href="/?view=sp1" target="_blank" rel="noreferrer">
+              SP1
+            </a>
             {' • '}
-            <a href="/?view=sp2" target="_blank" rel="noreferrer">SP2</a>
+            <a href="/?view=sp2" target="_blank" rel="noreferrer">
+              SP2
+            </a>
             {' • '}
-            <a href="/?view=sp3" target="_blank" rel="noreferrer">SP3</a>
+            <a href="/?view=sp3" target="_blank" rel="noreferrer">
+              SP3
+            </a>
             {' • '}
-            <a href="/?view=stall" target="_blank" rel="noreferrer">Stall</a>
+            <a href="/?view=stall" target="_blank" rel="noreferrer">
+              Stall
+            </a>
           </p>
         </div>
         <div className="hero-card">
-          <div className="stat"><span>Runtime</span><strong>{snapshot.relayMode}</strong></div>
-          <div className="stat"><span>Owner npub</span><strong style={{fontSize:12}}>{owner?.npub ?? 'loading...'}</strong></div>
-          <div className="stat"><span>Status</span><strong>{busy ? `Working: ${busy}` : status}</strong></div>
+          <div className="stat">
+            <span>Runtime</span>
+            <strong>{snapshot.relayMode}</strong>
+          </div>
+          <div className="stat">
+            <span>Owner npub</span>
+            <strong style={{ fontSize: 12 }}>{owner?.npub ?? 'loading...'}</strong>
+          </div>
+          <div className="stat">
+            <span>Status</span>
+            <strong>{busy ? `Working: ${busy}` : status}</strong>
+          </div>
         </div>
       </section>
 
@@ -232,7 +249,9 @@ export function App() {
         <h2>Window Mode</h2>
         <div className="dual">
           {(['all', 'challenger', 'sp1', 'sp2', 'sp3', 'stall'] as DemoView[]).map((v) => (
-            <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>{v}</button>
+            <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>
+              {v}
+            </button>
           ))}
         </div>
       </section>
@@ -243,7 +262,10 @@ export function App() {
           <div key={b.role} className="sub-row">
             <span>{participantLabel(b.role)}</span>
             <span>{Math.round(b.balanceMsats / 1000)} sats</span>
-            <span className="muted">funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}</span>
+            <span className="muted">
+              funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} /
+              out {Math.round(b.outgoingMsats / 1000)}
+            </span>
           </div>
         ))}
       </section>
@@ -253,7 +275,11 @@ export function App() {
           <h2>Challenger UI</h2>
           <p>Challenge feed can be viewed at Jumble for owner npub:</p>
           <p>
-            <a href={`https://jumble.social/users/${encodeURIComponent(owner?.npub ?? '')}`} target="_blank" rel="noreferrer">
+            <a
+              href={`https://jumble.social/users/${encodeURIComponent(owner?.npub ?? '')}`}
+              target="_blank"
+              rel="noreferrer"
+            >
               Open owner feed in jumble.social
             </a>
           </p>
@@ -265,7 +291,10 @@ export function App() {
               <div key={b.role} className="sub-row">
                 <span>{b.role}</span>
                 <span>{Math.round(b.balanceMsats / 1000)} sats</span>
-                <span className="muted">funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}</span>
+                <span className="muted">
+                  funded {Math.round(b.fundedMsats / 1000)} / in{' '}
+                  {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}
+                </span>
               </div>
             ))}
 
@@ -273,7 +302,11 @@ export function App() {
           <label>Seed Blob Id</label>
           <input value={seedBlobId} onChange={(event) => setSeedBlobId(event.target.value)} />
           <label>Seed Blob Content</label>
-          <textarea value={seedBlobContent} onChange={(event) => setSeedBlobContent(event.target.value)} rows={3} />
+          <textarea
+            value={seedBlobContent}
+            onChange={(event) => setSeedBlobContent(event.target.value)}
+            rows={3}
+          />
           <div className="dual" style={{ marginTop: 12 }}>
             <button
               onClick={() =>
@@ -289,22 +322,31 @@ export function App() {
           </div>
 
           <label>Blob for recurring challenge</label>
-          <select value={challengeBlobId} onChange={(event) => setChallengeBlobId(event.target.value)}>
+          <select
+            value={challengeBlobId}
+            onChange={(event) => setChallengeBlobId(event.target.value)}
+          >
             <option value="">Select blob</option>
             {snapshot.blobs.map((blob) => (
-              <option key={blob.blobId} value={blob.blobId}>{blob.blobId}</option>
+              <option key={blob.blobId} value={blob.blobId}>
+                {blob.blobId}
+              </option>
             ))}
           </select>
 
           <div className="dual" style={{ marginTop: 12 }}>
             <button
-              onClick={() => void run('manual challenge', () => createChallenge({
-                blobId: challengeBlobId,
-                payoutSchedule: [15, 12, 9],
-                reliabilityBonusMsats: 1000,
-                commitLeadSeconds: 20,
-                revealLeadSeconds: 40,
-              }))}
+              onClick={() =>
+                void run('manual challenge', () =>
+                  createChallenge({
+                    blobId: challengeBlobId,
+                    payoutSchedule: [15, 12, 9],
+                    reliabilityBonusMsats: 1000,
+                    commitLeadSeconds: 20,
+                    revealLeadSeconds: 40,
+                  }),
+                )
+              }
               disabled={!challengeBlobId}
             >
               Post Challenge Now
@@ -317,33 +359,37 @@ export function App() {
           <h3 style={{ marginTop: 16 }}>One-click scenarios</h3>
           <div className="dual">
             <button
-              onClick={() => void run('scenario: seed + replicate to SP3', async () => {
-                await uploadBlob(seedBlobId, seedBlobContent);
-                await requestStallTransfer({
-                  blobId: seedBlobId,
-                  fromRole: 'provider',
-                  toRole: 'provider3',
-                  supplierFeeSats: 5,
-                  stallFeeSats: 1,
-                });
-                setChallengeBlobId(seedBlobId);
-                setStallBlobId(seedBlobId);
-              })}
+              onClick={() =>
+                void run('scenario: seed + replicate to SP3', async () => {
+                  await uploadBlob(seedBlobId, seedBlobContent);
+                  await requestStallTransfer({
+                    blobId: seedBlobId,
+                    fromRole: 'provider',
+                    toRole: 'provider3',
+                    supplierFeeSats: 5,
+                    stallFeeSats: 1,
+                  });
+                  setChallengeBlobId(seedBlobId);
+                  setStallBlobId(seedBlobId);
+                })
+              }
             >
               Scenario A: Seed + Replicate SP1→SP3
             </button>
             <button
-              onClick={() => void run('scenario: run 3 rounds', async () => {
-                for (let i = 0; i < 3; i += 1) {
-                  await createChallenge({
-                    blobId: challengeBlobId || seedBlobId,
-                    payoutSchedule: [15, 12, 9],
-                    reliabilityBonusMsats: 1000,
-                    commitLeadSeconds: 20,
-                    revealLeadSeconds: 40,
-                  });
-                }
-              })}
+              onClick={() =>
+                void run('scenario: run 3 rounds', async () => {
+                  for (let i = 0; i < 3; i += 1) {
+                    await createChallenge({
+                      blobId: challengeBlobId || seedBlobId,
+                      payoutSchedule: [15, 12, 9],
+                      reliabilityBonusMsats: 1000,
+                      commitLeadSeconds: 20,
+                      revealLeadSeconds: 40,
+                    });
+                  }
+                })
+              }
               disabled={!(challengeBlobId || seedBlobId)}
             >
               Scenario B: Run 3 Challenge Rounds
@@ -355,13 +401,20 @@ export function App() {
           <select value={stallBlobId} onChange={(event) => setStallBlobId(event.target.value)}>
             <option value="">Select blob</option>
             {snapshot.blobs.map((blob) => (
-              <option key={blob.blobId} value={blob.blobId}>{blob.blobId}</option>
+              <option key={blob.blobId} value={blob.blobId}>
+                {blob.blobId}
+              </option>
             ))}
           </select>
           <div className="dual" style={{ marginTop: 8 }}>
             <div>
               <label>From SP</label>
-              <select value={stallFromRole} onChange={(event) => setStallFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
+              <select
+                value={stallFromRole}
+                onChange={(event) =>
+                  setStallFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')
+                }
+              >
                 <option value="provider">SP1</option>
                 <option value="provider2">SP2</option>
                 <option value="provider3">SP3</option>
@@ -369,7 +422,12 @@ export function App() {
             </div>
             <div>
               <label>To SP</label>
-              <select value={stallToRole} onChange={(event) => setStallToRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
+              <select
+                value={stallToRole}
+                onChange={(event) =>
+                  setStallToRole(event.target.value as 'provider' | 'provider2' | 'provider3')
+                }
+              >
                 <option value="provider">SP1</option>
                 <option value="provider2">SP2</option>
                 <option value="provider3">SP3</option>
@@ -379,47 +437,92 @@ export function App() {
           <div className="dual" style={{ marginTop: 8 }}>
             <div>
               <label>Supplier fee (sats)</label>
-              <input type="number" value={supplierFeeSats} min={0} onChange={(event) => setSupplierFeeSats(Number(event.target.value))} />
+              <input
+                type="number"
+                value={supplierFeeSats}
+                min={0}
+                onChange={(event) => setSupplierFeeSats(Number(event.target.value))}
+              />
             </div>
             <div>
               <label>Stall fee (sats)</label>
-              <input type="number" value={stallFeeSats} min={0} onChange={(event) => setStallFeeSats(Number(event.target.value))} />
+              <input
+                type="number"
+                value={stallFeeSats}
+                min={0}
+                onChange={(event) => setStallFeeSats(Number(event.target.value))}
+              />
             </div>
           </div>
           <button
             style={{ marginTop: 8 }}
-            onClick={() => void run('stall transfer', () => requestStallTransfer({
-              blobId: stallBlobId,
-              fromRole: stallFromRole,
-              toRole: stallToRole,
-              supplierFeeSats,
-              stallFeeSats,
-            }))}
+            onClick={() =>
+              void run('stall transfer', () =>
+                requestStallTransfer({
+                  blobId: stallBlobId,
+                  fromRole: stallFromRole,
+                  toRole: stallToRole,
+                  supplierFeeSats,
+                  stallFeeSats,
+                }),
+              )
+            }
             disabled={!stallBlobId || stallFromRole === stallToRole}
           >
             Request Transfer via Stall
           </button>
 
           <h3 style={{ marginTop: 16 }}>Replica Registry (CID → SP roots)</h3>
-          {snapshot.replicaRegistry.length === 0 ? <p className="muted">No replica roots yet.</p> : snapshot.replicaRegistry.map((entry) => (
-            <div key={entry.cid} className="result-card">
-              <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
-              {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
-                <div key={`${entry.cid}-${sp}`} className="sub-row"><span>{sp}</span><code>{root.slice(0, 24)}…</code></div>
-              ))}
-            </div>
-          ))}
+          {snapshot.replicaRegistry.length === 0 ? (
+            <p className="muted">No replica roots yet.</p>
+          ) : (
+            snapshot.replicaRegistry.map((entry) => (
+              <div key={entry.cid} className="result-card">
+                <div className="sub-row">
+                  <span>CID</span>
+                  <code>{entry.cid}</code>
+                </div>
+                {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
+                  <div key={`${entry.cid}-${sp}`} className="sub-row">
+                    <span>{sp}</span>
+                    <code>{root.slice(0, 24)}…</code>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
 
           <h3 style={{ marginTop: 16 }}>Market Stall Transfer Receipts</h3>
-          {snapshot.stallTransfers.length === 0 ? <p className="muted">No inter-SP transfers yet.</p> : snapshot.stallTransfers.slice(0, 8).map((receipt) => (
-            <div key={receipt.transferId} className="result-card">
-              <div className="result-head"><strong>{receipt.transferId}</strong><span className="badge">{receipt.fromRole} → {receipt.toRole}</span></div>
-              <div className="sub-row"><span>CID</span><code>{receipt.cid}</code></div>
-              <div className="sub-row"><span>Supplier fee</span><span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span></div>
-              <div className="sub-row"><span>Stall fee</span><span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span></div>
-              <div className="sub-row"><span>Time</span><span>{fmtTs(receipt.createdAt)}</span></div>
-            </div>
-          ))}
+          {snapshot.stallTransfers.length === 0 ? (
+            <p className="muted">No inter-SP transfers yet.</p>
+          ) : (
+            snapshot.stallTransfers.slice(0, 8).map((receipt) => (
+              <div key={receipt.transferId} className="result-card">
+                <div className="result-head">
+                  <strong>{receipt.transferId}</strong>
+                  <span className="badge">
+                    {receipt.fromRole} → {receipt.toRole}
+                  </span>
+                </div>
+                <div className="sub-row">
+                  <span>CID</span>
+                  <code>{receipt.cid}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Supplier fee</span>
+                  <span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span>
+                </div>
+                <div className="sub-row">
+                  <span>Stall fee</span>
+                  <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
+                </div>
+                <div className="sub-row">
+                  <span>Time</span>
+                  <span>{fmtTs(receipt.createdAt)}</span>
+                </div>
+              </div>
+            ))
+          )}
 
           <h3 style={{ marginTop: 16 }}>Tracked Files / Replication Health</h3>
           {Array.from(challengesByBlob.entries()).map(([blob, data]) => (
@@ -427,24 +530,45 @@ export function App() {
               <div>
                 <strong>{blob}</strong>
                 <p>Last checked: {fmtTs(data.lastChecked)}</p>
-                <p>Responders: {Array.from(data.responders).length ? Array.from(data.responders).join(', ') : 'none yet'}</p>
+                <p>
+                  Responders:{' '}
+                  {Array.from(data.responders).length
+                    ? Array.from(data.responders).join(', ')
+                    : 'none yet'}
+                </p>
               </div>
             </div>
           ))}
 
           <h3 style={{ marginTop: 16 }}>Round Timeline</h3>
-          {snapshot.challenges.slice().sort((a, b) => b.challenge.createdAt - a.challenge.createdAt).slice(0, 8).map((entry) => (
-            <div key={`${entry.challenge.id}-timeline`} className="result-card">
-              <div className="result-head">
-                <strong>{entry.challenge.payload.challengeId}</strong>
-                <span className="badge">leaf #{entry.challenge.payload.leafIndex}</span>
+          {snapshot.challenges
+            .slice()
+            .sort((a, b) => b.challenge.createdAt - a.challenge.createdAt)
+            .slice(0, 8)
+            .map((entry) => (
+              <div key={`${entry.challenge.id}-timeline`} className="result-card">
+                <div className="result-head">
+                  <strong>{entry.challenge.payload.challengeId}</strong>
+                  <span className="badge">leaf #{entry.challenge.payload.leafIndex}</span>
+                </div>
+                <div className="sub-row">
+                  <span>Challenge posted</span>
+                  <span>{fmtTs(entry.challenge.createdAt)}</span>
+                </div>
+                <div className="sub-row">
+                  <span>Commits</span>
+                  <span>{entry.commits.length}</span>
+                </div>
+                <div className="sub-row">
+                  <span>Reveals</span>
+                  <span>{entry.reveals.length}</span>
+                </div>
+                <div className="sub-row">
+                  <span>Settlement</span>
+                  <span>{entry.settlement ? fmtTs(entry.settlement.createdAt) : 'pending'}</span>
+                </div>
               </div>
-              <div className="sub-row"><span>Challenge posted</span><span>{fmtTs(entry.challenge.createdAt)}</span></div>
-              <div className="sub-row"><span>Commits</span><span>{entry.commits.length}</span></div>
-              <div className="sub-row"><span>Reveals</span><span>{entry.reveals.length}</span></div>
-              <div className="sub-row"><span>Settlement</span><span>{entry.settlement ? fmtTs(entry.settlement.createdAt) : 'pending'}</span></div>
-            </div>
-          ))}
+            ))}
 
           <h3 style={{ marginTop: 16 }}>Live Ranking (latest settled round)</h3>
           {!latestRound?.settlement ? (
@@ -456,17 +580,29 @@ export function App() {
                 <span className="badge">latest</span>
               </div>
               {(latestRound.settlement.payload.winners ?? []).map((winner) => {
-                const receipt = (latestRound.settlement?.payload.payoutReceipts ?? []).find((r) => r.responder === winner.responder);
+                const receipt = (latestRound.settlement?.payload.payoutReceipts ?? []).find(
+                  (r) => r.responder === winner.responder,
+                );
                 return (
                   <div key={`${latestRound.challenge.id}-${winner.responder}`} className="sub-row">
-                    <span>#{winner.rank} {winner.responder.slice(0, 12)}…</span>
-                    <span>{winner.baseSats} sats (+{winner.bonusMsats} msat bonus)</span>
-                    <span>{receipt ? `${Math.round(receipt.amountMsats / 1000)} sats paid` : 'pending payout'}</span>
+                    <span>
+                      #{winner.rank} {winner.responder.slice(0, 12)}…
+                    </span>
+                    <span>
+                      {winner.baseSats} sats (+{winner.bonusMsats} msat bonus)
+                    </span>
+                    <span>
+                      {receipt
+                        ? `${Math.round(receipt.amountMsats / 1000)} sats paid`
+                        : 'pending payout'}
+                    </span>
                   </div>
                 );
               })}
               {(latestRound.settlement.payload.excluded ?? []).length > 0 && (
-                <p className="muted">Excluded: {(latestRound.settlement.payload.excluded ?? []).join(', ')}</p>
+                <p className="muted">
+                  Excluded: {(latestRound.settlement.payload.excluded ?? []).join(', ')}
+                </p>
               )}
             </div>
           )}
@@ -502,17 +638,30 @@ export function App() {
           ) : (
             publishedEvents.slice(0, 30).map((event) => {
               const tagMap = new Map(event.tags.map((t) => [t[0], t[1]]));
-              const eventType = tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
+              const eventType =
+                tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
               return (
                 <div key={event.id} className="result-card">
                   <div className="result-head">
                     <strong>{eventType}</strong>
                     <span className="badge">kind {event.kind}</span>
                   </div>
-                  <div className="sub-row"><span>id</span><code>{event.id}</code></div>
-                  <div className="sub-row"><span>time</span><span>{fmtTs(event.createdAt)}</span></div>
-                  <div className="sub-row"><span>author</span><code>{event.pubkey.slice(0, 16)}…</code></div>
-                  <div className="sub-row"><span>content</span><code className="content-wrap">{event.content}</code></div>
+                  <div className="sub-row">
+                    <span>id</span>
+                    <code>{event.id}</code>
+                  </div>
+                  <div className="sub-row">
+                    <span>time</span>
+                    <span>{fmtTs(event.createdAt)}</span>
+                  </div>
+                  <div className="sub-row">
+                    <span>author</span>
+                    <code>{event.pubkey.slice(0, 16)}…</code>
+                  </div>
+                  <div className="sub-row">
+                    <span>content</span>
+                    <code className="content-wrap">{event.content}</code>
+                  </div>
                 </div>
               );
             })
@@ -527,12 +676,22 @@ export function App() {
             .map((sp) => (
               <div className="panel" key={sp.id}>
                 <h2>{sp.label}</h2>
-                <p><strong>npub:</strong> <code>{sp.npub}</code></p>
-                <p><strong>Last paid:</strong> {fmtTs(sp.lastPaid)}</p>
+                <p>
+                  <strong>npub:</strong> <code>{sp.npub}</code>
+                </p>
+                <p>
+                  <strong>Last paid:</strong> {fmtTs(sp.lastPaid)}
+                </p>
 
                 <h3>Tracked files</h3>
-                {sp.files.length === 0 ? <p className="muted">No tracked files yet.</p> : (
-                  sp.files.map((f) => <div key={f} className="sub-row"><span>{f}</span></div>)
+                {sp.files.length === 0 ? (
+                  <p className="muted">No tracked files yet.</p>
+                ) : (
+                  sp.files.map((f) => (
+                    <div key={f} className="sub-row">
+                      <span>{f}</span>
+                    </div>
+                  ))
                 )}
 
                 <h3 style={{ marginTop: 16 }}>Open challenges</h3>
@@ -542,14 +701,22 @@ export function App() {
                       <strong>{c.challenge.payload.challengeId}</strong>
                       <p>{c.challenge.payload.contentRef}</p>
                     </div>
-                    <button onClick={() => void run(`${sp.id} respond`, () => respondToChallenge(c.challenge.payload.challengeId, sp.role))}>
+                    <button
+                      onClick={() =>
+                        void run(`${sp.id} respond`, () =>
+                          respondToChallenge(c.challenge.payload.challengeId, sp.role),
+                        )
+                      }
+                    >
                       Respond
                     </button>
                   </div>
                 ))}
 
                 <h3 style={{ marginTop: 16 }}>Payout receipts</h3>
-                {recentSettlements.flatMap((s) => s.settlement?.payload.payoutReceipts ?? []).filter((r) => r.responder === sp.npub).length === 0 ? (
+                {recentSettlements
+                  .flatMap((s) => s.settlement?.payload.payoutReceipts ?? [])
+                  .filter((r) => r.responder === sp.npub).length === 0 ? (
                   <p className="muted">No payouts for this SP yet.</p>
                 ) : (
                   recentSettlements
@@ -570,7 +737,10 @@ export function App() {
       {(view === 'all' || view === 'stall') && (
         <section className="panel" style={{ marginTop: 16 }}>
           <h2>Stall View</h2>
-          <p className="muted">Stall routes DO uploads/replication and re-encrypts data between SPs. Transfers below show source and target SP for each CID.</p>
+          <p className="muted">
+            Stall routes DO uploads/replication and re-encrypts data between SPs. Transfers below
+            show source and target SP for each CID.
+          </p>
 
           <h3>Re-encryption / Transfer log</h3>
           {snapshot.stallTransfers.length === 0 ? (
@@ -580,15 +750,38 @@ export function App() {
               <div key={`stall-${receipt.transferId}`} className="result-card">
                 <div className="result-head">
                   <strong>{receipt.transferId}</strong>
-                  <span className="badge">{roleLabel(receipt.fromRole)} → {roleLabel(receipt.toRole)}</span>
+                  <span className="badge">
+                    {roleLabel(receipt.fromRole)} → {roleLabel(receipt.toRole)}
+                  </span>
                 </div>
-                <div className="sub-row"><span>CID</span><code>{receipt.cid}</code></div>
-                <div className="sub-row"><span>Blob</span><span>{receipt.blobId}</span></div>
-                <div className="sub-row"><span>Requester</span><code>{receipt.requester.slice(0, 16)}…</code></div>
-                <div className="sub-row"><span>Supplier</span><code>{receipt.supplier.slice(0, 16)}…</code></div>
-                <div className="sub-row"><span>Supplier fee</span><span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span></div>
-                <div className="sub-row"><span>Stall fee</span><span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span></div>
-                <div className="sub-row"><span>Time</span><span>{fmtTs(receipt.createdAt)}</span></div>
+                <div className="sub-row">
+                  <span>CID</span>
+                  <code>{receipt.cid}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Blob</span>
+                  <span>{receipt.blobId}</span>
+                </div>
+                <div className="sub-row">
+                  <span>Requester</span>
+                  <code>{receipt.requester.slice(0, 16)}…</code>
+                </div>
+                <div className="sub-row">
+                  <span>Supplier</span>
+                  <code>{receipt.supplier.slice(0, 16)}…</code>
+                </div>
+                <div className="sub-row">
+                  <span>Supplier fee</span>
+                  <span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span>
+                </div>
+                <div className="sub-row">
+                  <span>Stall fee</span>
+                  <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
+                </div>
+                <div className="sub-row">
+                  <span>Time</span>
+                  <span>{fmtTs(receipt.createdAt)}</span>
+                </div>
               </div>
             ))
           )}
@@ -598,14 +791,30 @@ export function App() {
             <p className="muted">No replicas registered yet.</p>
           ) : (
             snapshot.replicaRegistry.map((entry) => {
-              const blobName = snapshot.blobs.find((blob) => blob.contentRef === entry.cid)?.blobId ?? 'unknown';
+              const blobName =
+                snapshot.blobs.find((blob) => blob.contentRef === entry.cid)?.blobId ?? 'unknown';
               return (
                 <div key={`stall-repl-${entry.cid}`} className="result-card">
-                  <div className="sub-row"><span>Blob</span><span>{blobName}</span></div>
-                  <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
-                  <div className="sub-row"><span>SP1</span><span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span></div>
-                  <div className="sub-row"><span>SP2</span><span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span></div>
-                  <div className="sub-row"><span>SP3</span><span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span></div>
+                  <div className="sub-row">
+                    <span>Blob</span>
+                    <span>{blobName}</span>
+                  </div>
+                  <div className="sub-row">
+                    <span>CID</span>
+                    <code>{entry.cid}</code>
+                  </div>
+                  <div className="sub-row">
+                    <span>SP1</span>
+                    <span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span>
+                  </div>
+                  <div className="sub-row">
+                    <span>SP2</span>
+                    <span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span>
+                  </div>
+                  <div className="sub-row">
+                    <span>SP3</span>
+                    <span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span>
+                  </div>
                 </div>
               );
             })

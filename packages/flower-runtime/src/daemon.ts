@@ -428,13 +428,51 @@ export class FlowerDaemon {
     const supplierFeeMsats = Math.max(0, Math.round(input.supplierFeeSats * 1000));
     const stallFeeMsats = Math.max(0, Math.round(input.stallFeeSats * 1000));
 
-    this.bumpMarketFlow(input.toRole, 'out', supplierFeeMsats + stallFeeMsats);
-    this.bumpMarketFlow(input.fromRole, 'in', Math.max(0, supplierFeeMsats - stallFeeMsats));
-    this.bumpMarketFlow('settler', 'in', stallFeeMsats);
-
     const requester = this.signerForRole(input.toRole).npub;
     const supplier = this.signerForRole(input.fromRole).npub;
     const stall = this.settler.npub;
+
+    let supplierPaymentRef: string | undefined;
+    let stallPaymentRef: string | undefined;
+    let paymentStatus: StallTransferReceipt['paymentStatus'] = 'simulated';
+    let paymentError: string | undefined;
+
+    if (this.payoutAdapter instanceof NwcPayoutAdapter) {
+      let supplierPaid = supplierFeeMsats <= 0;
+      let stallPaid = stallFeeMsats <= 0;
+      try {
+        if (supplierFeeMsats > 0) {
+          const supplierPay = await this.payoutAdapter.transferBetweenNpubs({
+            fromNpub: requester,
+            toNpub: supplier,
+            amountMsats: supplierFeeMsats,
+            memo: `stall supplier fee ${cid}`,
+            settlementRef: cid,
+          });
+          supplierPaymentRef = supplierPay.tokenRef;
+          supplierPaid = true;
+        }
+        if (stallFeeMsats > 0) {
+          const stallPay = await this.payoutAdapter.transferBetweenNpubs({
+            fromNpub: requester,
+            toNpub: stall,
+            amountMsats: stallFeeMsats,
+            memo: `stall fee ${cid}`,
+            settlementRef: cid,
+          });
+          stallPaymentRef = stallPay.tokenRef;
+          stallPaid = true;
+        }
+      } catch (error) {
+        paymentError = error instanceof Error ? error.message : String(error);
+      }
+
+      paymentStatus = supplierPaid && stallPaid ? 'paid' : supplierPaid || stallPaid ? 'partial' : 'failed';
+    }
+
+    this.bumpMarketFlow(input.toRole, 'out', supplierFeeMsats + stallFeeMsats);
+    this.bumpMarketFlow(input.fromRole, 'in', Math.max(0, supplierFeeMsats - stallFeeMsats));
+    this.bumpMarketFlow('settler', 'in', stallFeeMsats);
 
     const receipt: StallTransferReceipt = {
       transferId: randomId('stall'),
@@ -447,6 +485,10 @@ export class FlowerDaemon {
       requester,
       supplier,
       stall,
+      paymentStatus,
+      supplierPaymentRef,
+      stallPaymentRef,
+      paymentError,
       createdAt: Math.floor(Date.now() / 1000),
     };
     this.stallTransfers.push(receipt);

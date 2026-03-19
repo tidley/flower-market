@@ -20,6 +20,15 @@ type WalletEntry = {
   client: NWCClient;
 };
 
+export interface NwcTransferResult {
+  id: string;
+  tokenRef: string;
+  amountMsats: number;
+  fromNpub: string;
+  toNpub: string;
+}
+
+
 export class NwcPayoutAdapter implements PayoutAdapter {
   readonly kind = 'lightning' as const;
 
@@ -27,6 +36,7 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   private payerClient: NWCClient;
   private recipientsByNpub: Record<string, NWCClient>;
   private observersByNpub: Record<string, NWCClient>;
+  private walletClientsByNpub: Record<string, NWCClient>;
   private balancePollSpacingMs: number;
 
   constructor(config: NwcPayoutConfig) {
@@ -38,6 +48,11 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     this.observersByNpub = Object.fromEntries(
       Object.entries(config.observersByNpub ?? {}).map(([npub, wallet]) => [npub, new NWCClient({ nostrWalletConnectUrl: wallet.uri })]),
     );
+    this.walletClientsByNpub = {
+      [this.payerNpub]: this.payerClient,
+      ...this.recipientsByNpub,
+      ...this.observersByNpub,
+    };
     this.balancePollSpacingMs = Math.max(0, config.balancePollSpacingMs ?? 750);
   }
 
@@ -125,17 +140,50 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     return balances;
   }
 
-  async close(): Promise<void> {
-    try {
-      this.payerClient.close();
-    } catch {}
-
-    for (const client of Object.values(this.recipientsByNpub)) {
-      try {
-        client.close();
-      } catch {}
+  async transferBetweenNpubs(input: {
+    fromNpub: string;
+    toNpub: string;
+    amountMsats: number;
+    memo?: string;
+    settlementRef?: string;
+  }): Promise<NwcTransferResult> {
+    if (!Number.isFinite(input.amountMsats) || input.amountMsats <= 0) {
+      throw new Error('amountMsats must be > 0');
     }
-    for (const client of Object.values(this.observersByNpub)) {
+
+    const payer = this.walletClientsByNpub[input.fromNpub];
+    if (!payer) throw new Error(`No NWC payer mapping for ${input.fromNpub}`);
+
+    const recipient = this.walletClientsByNpub[input.toNpub];
+    if (!recipient) throw new Error(`No NWC recipient mapping for ${input.toNpub}`);
+
+    const invoiceResponse = await recipient.makeInvoice({
+      amount: input.amountMsats,
+      description: input.memo ?? `Flower transfer ${input.settlementRef ?? ''}`,
+    } as any);
+
+    const invoice = (invoiceResponse as any)?.invoice;
+    if (!invoice || typeof invoice !== 'string') {
+      throw new Error(`NWC make_invoice did not return invoice for ${input.toNpub}`);
+    }
+
+    const paymentResponse = await payer.payInvoice({ invoice } as any);
+    const paymentHash =
+      (paymentResponse as any)?.payment_hash ||
+      (paymentResponse as any)?.preimage ||
+      `unknown_${Date.now()}`;
+
+    return {
+      id: `nwc_xfer_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      tokenRef: `payment_hash:${paymentHash}`,
+      amountMsats: input.amountMsats,
+      fromNpub: input.fromNpub,
+      toNpub: input.toNpub,
+    };
+  }
+
+  async close(): Promise<void> {
+    for (const client of new Set(Object.values(this.walletClientsByNpub))) {
       try {
         client.close();
       } catch {}

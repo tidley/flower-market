@@ -633,7 +633,7 @@ export function App() {
                 </div>
                 <div className="sub-row">
                   <span>CID</span>
-                  <code>{receipt.cid}</code>
+                  <code>{shortId(receipt.cid, 14)}</code>
                 </div>
                 <div className="sub-row">
                   <span>Supplier fee</span>
@@ -643,6 +643,10 @@ export function App() {
                   <span>Stall fee</span>
                   <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
                 </div>
+                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.paymentStatus}</span></div>
+                {receipt.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.supplierPaymentRef, 12)}</code></div>}
+                {receipt.stallPaymentRef && <div className="sub-row"><span>Stall payment</span><code>{shortId(receipt.stallPaymentRef, 12)}</code></div>}
+                {receipt.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.paymentError}</span></div>}
                 <div className="sub-row">
                   <span>Time</span>
                   <span>{fmtTs(receipt.createdAt)}</span>
@@ -898,11 +902,11 @@ export function App() {
                 </div>
                 <div className="sub-row">
                   <span>Requester</span>
-                  <code>{receipt.requester.slice(0, 16)}…</code>
+                  <code>{shortId(receipt.requester, 10)}</code>
                 </div>
                 <div className="sub-row">
                   <span>Supplier</span>
-                  <code>{receipt.supplier.slice(0, 16)}…</code>
+                  <code>{shortId(receipt.supplier, 10)}</code>
                 </div>
                 <div className="sub-row">
                   <span>Supplier fee</span>
@@ -912,6 +916,10 @@ export function App() {
                   <span>Stall fee</span>
                   <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
                 </div>
+                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.paymentStatus}</span></div>
+                {receipt.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.supplierPaymentRef, 12)}</code></div>}
+                {receipt.stallPaymentRef && <div className="sub-row"><span>Stall payment</span><code>{shortId(receipt.stallPaymentRef, 12)}</code></div>}
+                {receipt.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.paymentError}</span></div>}
                 <div className="sub-row">
                   <span>Time</span>
                   <span>{fmtTs(receipt.createdAt)}</span>

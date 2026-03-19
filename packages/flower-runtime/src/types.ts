@@ -256,6 +256,10 @@ export interface StallTransferReceipt {
   requester: string;
   supplier: string;
   stall: string;
+  paymentStatus: 'simulated' | 'paid' | 'partial' | 'failed';
+  supplierPaymentRef?: string;
+  stallPaymentRef?: string;
+  paymentError?: string;
   createdAt: number;
 }
 

@@ -162,9 +162,12 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     : [];
 
   const nwcUri = process.env.FLOWER_CHALLENGER_NWC;
-  const nwcCheck = payoutMode === 'lightning' && nwcUri
-    ? await probeNwc(nwcUri, handle.daemon.owner.npub)
-    : { ok: false, error: payoutMode === 'lightning' ? 'FLOWER_CHALLENGER_NWC missing' : 'payout mode not lightning' };
+  const runStartupNwcProbe = process.env.FLOWER_STARTUP_NWC_PROBE !== 'false';
+  const nwcCheck = !runStartupNwcProbe
+    ? { ok: false, error: 'startup NWC probe disabled (FLOWER_STARTUP_NWC_PROBE=false)' }
+    : payoutMode === 'lightning' && nwcUri
+      ? await probeNwc(nwcUri, handle.daemon.owner.npub)
+      : { ok: false, error: payoutMode === 'lightning' ? 'FLOWER_CHALLENGER_NWC missing' : 'payout mode not lightning' };
 
   console.log(
     JSON.stringify(

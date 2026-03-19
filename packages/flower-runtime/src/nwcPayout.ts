@@ -139,8 +139,13 @@ export class NwcPayoutAdapter implements PayoutAdapter {
       const balance = await client.getBalance();
       const msats = coerceMsats(balance as Record<string, unknown>);
       if (msats !== null) return msats;
-    } catch {
-      // fallback to getInfo
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isNetworkFailure = message.includes('Failed to connect') || message.includes('Nip47NetworkError');
+      if (isNetworkFailure) {
+        throw error;
+      }
+      // Non-network failures can still fallback to getInfo.
     }
 
     const info = await client.getInfo();

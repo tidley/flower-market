@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import 'websocket-polyfill';
+
+import { NwcPayoutAdapter } from './nwcPayout.ts';
 import { startFlowerDaemonServer } from './server.ts';
 
 const DEFAULT_RELAYS = ['wss://nos.lol', 'wss://relay.damus.io'];
@@ -43,6 +46,68 @@ function wantsMemoryMode(argv: string[]): boolean {
   return argv.includes('--memory') || process.env.FLOWER_RELAY_MODE === 'memory';
 }
 
+async function probeRelay(url: string, timeoutMs = 6000): Promise<{ url: string; ok: boolean; latencyMs?: number; error?: string }> {
+  const startedAt = Date.now();
+
+  return new Promise((resolve) => {
+    let done = false;
+    const WS = (globalThis as unknown as { WebSocket?: new (url: string) => {
+      close: () => void;
+      onopen: (() => void) | null;
+      onerror: ((event: unknown) => void) | null;
+    } }).WebSocket;
+
+    if (!WS) {
+      resolve({ url, ok: false, error: 'WebSocket unavailable in runtime' });
+      return;
+    }
+
+    const ws = new WS(url);
+
+    const finish = (result: { ok: boolean; error?: string }) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try {
+        ws.close();
+      } catch {
+        // ignore
+      }
+      resolve({
+        url,
+        ok: result.ok,
+        latencyMs: Date.now() - startedAt,
+        error: result.error,
+      });
+    };
+
+    const timer = setTimeout(() => finish({ ok: false, error: `timeout after ${timeoutMs}ms` }), timeoutMs);
+
+    ws.onopen = () => finish({ ok: true });
+    ws.onerror = (event) => {
+      const maybeMessage = (event as unknown as { message?: string })?.message;
+      finish({ ok: false, error: maybeMessage || 'websocket error' });
+    };
+  });
+}
+
+async function probeNwc(uri: string, ownerNpub: string): Promise<{ ok: boolean; msats?: number; sats?: number; error?: string }> {
+  const adapter = new NwcPayoutAdapter({
+    payer: { uri, npub: ownerNpub },
+    recipientsByNpub: {},
+  });
+
+  try {
+    const balances = await adapter.getBalanceMsatsByNpub();
+    const msats = balances[ownerNpub] ?? 0;
+    return { ok: true, msats, sats: Math.floor(msats / 1000) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    await adapter.close();
+  }
+}
+
 async function main(argv = process.argv.slice(2)): Promise<void> {
   loadDotEnv();
   const cliRelays = parseRelayUrls(argv);
@@ -82,6 +147,28 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
         relayMode: handle.daemon.relayMode,
         relayUrls: handle.daemon.relayUrls,
         payoutMode,
+      },
+      null,
+      2,
+    ),
+  );
+
+  const relayChecks = relayUrls.length > 0
+    ? await Promise.all(relayUrls.map((url) => probeRelay(url, process.env.FLOWER_RELAY_PROBE_TIMEOUT_MS ? Number(process.env.FLOWER_RELAY_PROBE_TIMEOUT_MS) : 6000)))
+    : [];
+
+  const nwcUri = process.env.FLOWER_CHALLENGER_NWC;
+  const nwcCheck = payoutMode === 'lightning' && nwcUri
+    ? await probeNwc(nwcUri, handle.daemon.owner.npub)
+    : { ok: false, error: payoutMode === 'lightning' ? 'FLOWER_CHALLENGER_NWC missing' : 'payout mode not lightning' };
+
+  console.log(
+    JSON.stringify(
+      {
+        startupConnectivity: {
+          relays: relayChecks,
+          nwc: nwcCheck,
+        },
       },
       null,
       2,

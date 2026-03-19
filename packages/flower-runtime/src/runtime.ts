@@ -184,24 +184,33 @@ export async function settlePublishedChallenge(
     totalMsats: winner.totalMsats,
   }));
 
+  const payoutFailures: string[] = [];
   const payoutReceipts = payoutAdapter
-    ? await Promise.all(
-        winners.map(async (winner) => {
-          const receipt = await payoutAdapter.execute({
-            recipientNpub: winner.responder,
-            amountMsats: winner.totalMsats,
-            settlementRef: challenge.payload.challengeId,
-            memo: `flower payout rank ${winner.rank}`,
-          });
-          return {
-            responder: winner.responder,
-            amountMsats: winner.totalMsats,
-            mintUrl: receipt.mintUrl,
-            tokenRef: receipt.tokenRef,
-            payoutId: receipt.id,
-          };
-        }),
-      )
+    ? (
+        await Promise.all(
+          winners.map(async (winner) => {
+            try {
+              const receipt = await payoutAdapter.execute({
+                recipientNpub: winner.responder,
+                amountMsats: winner.totalMsats,
+                settlementRef: challenge.payload.challengeId,
+                memo: `flower payout rank ${winner.rank}`,
+              });
+              return {
+                responder: winner.responder,
+                amountMsats: winner.totalMsats,
+                mintUrl: receipt.mintUrl,
+                tokenRef: receipt.tokenRef,
+                payoutId: receipt.id,
+              };
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              payoutFailures.push(`payout_failed:${winner.responder}:${message}`);
+              return null;
+            }
+          }),
+        )
+      ).filter((value): value is NonNullable<typeof value> => value !== null)
     : undefined;
 
   const settlementPayload: SettlementEventPayload = {
@@ -212,7 +221,7 @@ export async function settlePublishedChallenge(
     inputHash: envelope.inputHash,
     outputHash: envelope.outputHash,
     winners,
-    excluded: settlementOutput.excluded,
+    excluded: [...settlementOutput.excluded, ...payoutFailures],
     payoutReceipts,
   };
 

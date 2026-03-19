@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
 import { createRuntimeSigner } from './crypto.ts';
 import { MemoryRelayTransport } from './relay.ts';
-import { runAutonomousRound, summarizeRound } from './runtime.ts';
+import { runAutonomousRound, settlePublishedChallenge, summarizeRound } from './runtime.ts';
+import type { PayoutAdapter } from '../../flower-payout/src/index.ts';
 
 describe('flower-runtime', () => {
   const servers: DummyBlossomServer[] = [];
@@ -53,6 +54,49 @@ describe('flower-runtime', () => {
     expect(result.settlement.payload.winners[0]?.baseSats).toBe(15);
     expect(result.settlement.payload.excluded).toEqual([]);
     expect(summarizeRound(result)).toContain('relaySettlementEventId');
+
+    await transport.close();
+  });
+
+  it('does not fail settlement when payout adapter cannot map a winner', async () => {
+    const server = new DummyBlossomServer([createBlossomFixture('blob_unmapped', 'round payload')]);
+    servers.push(server);
+    const port = await server.start();
+    const transport = new MemoryRelayTransport();
+
+    const owner = createRuntimeSigner();
+    const responder = createRuntimeSigner();
+    const settler = createRuntimeSigner();
+
+    const result = await runAutonomousRound(
+      transport,
+      `http://127.0.0.1:${port}`,
+      { owner, responder, settler },
+      { blobId: 'blob_unmapped', challengeId: 'ch_unmapped' },
+    );
+
+    const payoutAdapter: PayoutAdapter = {
+      kind: 'lightning',
+      quote: async () => ({ mintUrl: 'lightning:nwc', amountMsats: 1000, feeMsats: 0, totalMsats: 1000 }),
+      execute: async () => {
+        throw new Error('No NWC recipient mapping for npub_test');
+      },
+      verify: async () => true,
+    };
+
+    const settlement = await settlePublishedChallenge(
+      transport,
+      settler,
+      result.challenge,
+      result.blossom,
+      result.commit,
+      result.reveal,
+      payoutAdapter,
+    );
+
+    expect(settlement.payload.winners).toHaveLength(1);
+    expect(settlement.payload.payoutReceipts ?? []).toHaveLength(0);
+    expect(settlement.payload.excluded.some((entry) => entry.includes('payout_failed:'))).toBe(true);
 
     await transport.close();
   });

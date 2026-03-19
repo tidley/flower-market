@@ -52,6 +52,13 @@ function shortId(value: string, keep = 10): string {
   return `${value.slice(0, keep)}…${value.slice(-keep)}`;
 }
 
+function roleName(role: string): string {
+  if (role === 'provider') return 'SP1';
+  if (role === 'provider2') return 'SP2';
+  if (role === 'provider3') return 'SP3';
+  return role;
+}
+
 export function App() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(emptySnapshot);
   const [status, setStatus] = useState('Connecting to daemon...');
@@ -148,6 +155,12 @@ export function App() {
     }
     return out;
   }, [snapshot]);
+
+  const blobNameByContentRef = useMemo(() => {
+    const map = new Map<string, string>();
+    snapshot.blobs.forEach((blob) => map.set(blob.contentRef, blob.blobId));
+    return map;
+  }, [snapshot.blobs]);
 
   const providerLastPaid = useMemo(() => {
     const byResponder = new Map<string, number>();
@@ -603,14 +616,14 @@ export function App() {
               <p className="muted">No replica roots yet.</p>
             ) : (
               snapshot.replicaRegistry.map((entry) => (
-                <div key={entry.cid} className="result-card">
-                  <div className="sub-row">
-                    <span>CID</span>
+                <div key={entry.cid} className="result-card compact-card">
+                  <div className="result-head">
+                    <strong>{blobNameByContentRef.get(entry.cid) ?? 'Unknown blob'}</strong>
                     <code>{shortId(entry.cid, 14)}</code>
                   </div>
                   {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
                     <div key={`${entry.cid}-${sp}`} className="sub-row">
-                      <span>{sp}</span>
+                      <span>{roleName(sp)}</span>
                       <code>{shortId(root, 12)}</code>
                     </div>
                   ))}
@@ -656,20 +669,33 @@ export function App() {
           )}
 
           <h3 style={{ marginTop: 16 }}>Tracked Files / Replication Health</h3>
-          {Array.from(challengesByBlob.entries()).map(([blob, data]) => (
-            <div key={blob} className="list-row">
-              <div>
-                <strong>{blob}</strong>
-                <p>Last checked: {fmtTs(data.lastChecked)}</p>
-                <p>
-                  Responders:{' '}
-                  {Array.from(data.responders).length
-                    ? Array.from(data.responders).join(', ')
-                    : 'none yet'}
-                </p>
-              </div>
-            </div>
-          ))}
+          {Array.from(challengesByBlob.entries())
+            .sort((a, b) => (b[1].lastChecked ?? 0) - (a[1].lastChecked ?? 0))
+            .map(([blob, data]) => {
+              const responders = Array.from(data.responders);
+              return (
+                <div key={blob} className="result-card compact-card">
+                  <div className="result-head">
+                    <strong>{blobNameByContentRef.get(blob) ?? (blob.startsWith('cid:') ? 'CID-only blob' : 'Legacy blob ref')}</strong>
+                    <code>{shortId(blob, 14)}</code>
+                  </div>
+                  <div className="sub-row"><span>Last checked</span><span>{fmtTs(data.lastChecked)}</span></div>
+                  <div className="sub-row"><span>Responder count</span><span className={`chip ${responders.length > 0 ? 'settled' : 'open'}`}>{responders.length}</span></div>
+                  <details className="evidence-block" style={{ marginTop: 8 }}>
+                    <summary>Responders</summary>
+                    {responders.length === 0 ? (
+                      <p className="muted">none yet</p>
+                    ) : (
+                      responders.map((responder) => (
+                        <div key={`${blob}-${responder}`} className="sub-row">
+                          <span>{shortId(responder, 12)}</span>
+                        </div>
+                      ))
+                    )}
+                  </details>
+                </div>
+              );
+            })}
 
           <h3 style={{ marginTop: 16 }}>Round Timeline</h3>
           {snapshot.challenges

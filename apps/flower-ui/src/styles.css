@@ -178,6 +178,8 @@ pre{
 .chip.settled{background:rgba(124,240,200,.15);color:var(--accent);border-color:rgba(124,240,200,.35)}
 .chip.open{background:rgba(255,196,107,.14);color:var(--warm);border-color:rgba(255,196,107,.32)}
 .evidence-block>summary{cursor:pointer;color:var(--muted);margin:8px 0 10px}
+.compact-card .sub-row{padding:8px 0}
+.compact-card .result-head code{color:var(--muted);font-size:.85rem}
 
 .balance-panel{padding:20px;border-radius:14px}
 .balance-table-head,.balance-row{

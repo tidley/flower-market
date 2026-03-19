@@ -58,6 +58,17 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
         return;
       }
 
+      if (request.method === 'GET' && url.pathname.startsWith('/api/blobs/')) {
+        const blobId = decodeURIComponent(url.pathname.slice('/api/blobs/'.length));
+        const blob = daemon.listBlobs().find((entry) => entry.blobId === blobId);
+        if (!blob) {
+          json(response, 404, { error: 'blob not found', blobId });
+          return;
+        }
+        json(response, 200, blob);
+        return;
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/funding') {
         const body = await readJson<{ role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler'; sats: number }>(request);
         daemon.addFunding(body.role, body.sats);

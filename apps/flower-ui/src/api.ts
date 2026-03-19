@@ -34,6 +34,10 @@ export function uploadBlob(blobId: string, content: string) {
   });
 }
 
+export function retrieveBlob(blobId: string) {
+  return request(`/api/blobs/${encodeURIComponent(blobId)}`);
+}
+
 export function addFunding(role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler', sats: number) {
   return request('/api/funding', {
     method: 'POST',

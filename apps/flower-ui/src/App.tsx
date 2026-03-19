@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestStallTransfer, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
+import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestStallTransfer, respondToChallenge, retrieveBlob, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -68,6 +68,7 @@ export function App() {
   const [stallToRole, setStallToRole] = useState<'provider' | 'provider2' | 'provider3'>('provider3');
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
   const [stallFeeSats, setStallFeeSats] = useState(1);
+  const [retrievedBlob, setRetrievedBlob] = useState<{ blobId: string; contentRef: string; content: string } | null>(null);
 
 
   async function refreshState() {
@@ -415,6 +416,35 @@ export function App() {
               Seed Blob
             </button>
           </div>
+
+          <h3 style={{ marginTop: 16 }}>Retrieve Blob (Challenger)</h3>
+          <div className="dual" style={{ marginTop: 8 }}>
+            <select value={challengeBlobId} onChange={(event) => setChallengeBlobId(event.target.value)}>
+              <option value="">Select blob</option>
+              {snapshot.blobs.map((blob) => (
+                <option key={`retrieve-${blob.blobId}`} value={blob.blobId}>{blob.blobId}</option>
+              ))}
+            </select>
+            <button
+              onClick={() =>
+                void run('retrieve blob', async () => {
+                  if (!challengeBlobId) return;
+                  const blob = await retrieveBlob(challengeBlobId) as { blobId: string; contentRef: string; content: string };
+                  setRetrievedBlob({ blobId: blob.blobId, contentRef: blob.contentRef, content: blob.content });
+                })
+              }
+              disabled={!challengeBlobId}
+            >
+              Retrieve Blob
+            </button>
+          </div>
+          {retrievedBlob && (
+            <div className="result-card">
+              <div className="sub-row"><span>Blob</span><span>{retrievedBlob.blobId}</span></div>
+              <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.contentRef, 14)}</code></div>
+              <div className="sub-row"><span>Content</span><code className="content-wrap">{retrievedBlob.content}</code></div>
+            </div>
+          )}
 
           <label>Blob for recurring challenge</label>
           <select

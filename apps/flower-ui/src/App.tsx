@@ -198,7 +198,6 @@ export function App() {
         <div>
           <p className="eyebrow">Flower Market Demo Control</p>
           <h1>Challenger + 3x SP windows</h1>
-          <p className="lede">Open this app in 4 windows with query params: <code>?view=challenger</code>, <code>?view=sp1</code>, <code>?view=sp2</code>, <code>?view=sp3</code>.</p>
           <p>
             Quick links:
             {' '}
@@ -225,6 +224,17 @@ export function App() {
             <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>{v}</button>
           ))}
         </div>
+      </section>
+
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <h2>Participant Balances</h2>
+        {snapshot.balances.map((b) => (
+          <div key={b.role} className="sub-row">
+            <span>{b.role}</span>
+            <span>{Math.round(b.balanceMsats / 1000)} sats</span>
+            <span className="muted">funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}</span>
+          </div>
+        ))}
       </section>
 
       {(view === 'all' || view === 'challenger') && (

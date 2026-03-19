@@ -137,6 +137,8 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     challengerNwcUri: process.env.FLOWER_CHALLENGER_NWC,
     providerNwcUri: process.env.FLOWER_SP1_NWC,
     provider2NwcUri: process.env.FLOWER_SP2_NWC,
+    provider3NwcUri: process.env.FLOWER_SP3_NWC,
+    stallNwcUri: process.env.FLOWER_STALL_NWC,
   });
 
   console.log(

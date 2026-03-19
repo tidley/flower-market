@@ -20,7 +20,7 @@ describe('flower-runtime', () => {
 
     const object = await fetchBlossomObject(`http://127.0.0.1:${port}`, 'blob_a');
 
-    expect(object.contentRef).toBe('blossom:blob_a');
+    expect(object.contentRef.startsWith('cid:')).toBe(true);
     expect(object.leafHash).toBe(object.merkleRoot);
     expect(object.sampleProof).toEqual([]);
   });

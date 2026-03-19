@@ -27,13 +27,6 @@ import type {
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
 
-function parseBlossomBlobId(contentRef: string): string {
-  if (!contentRef.startsWith('blossom:')) {
-    throw new Error(`Unsupported contentRef for dummy Blossom runtime: ${contentRef}`);
-  }
-
-  return contentRef.slice('blossom:'.length);
-}
 
 export interface FlowerDaemonConfig {
   relayUrls?: string[];
@@ -50,6 +43,8 @@ export interface FlowerDaemonConfig {
   challengerNwcUri?: string;
   providerNwcUri?: string;
   provider2NwcUri?: string;
+  provider3NwcUri?: string;
+  stallNwcUri?: string;
 }
 
 type PublishedMessage = {
@@ -89,6 +84,7 @@ export class FlowerDaemon {
   private marketIncomingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
   private marketOutgoingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
   private replicaRootsByCid = new Map<string, Map<'provider' | 'provider2' | 'provider3', string>>();
+  private cidToBlobId = new Map<string, string>();
   private inventoryByRole = new Map<'provider' | 'provider2' | 'provider3', Set<string>>();
   private stallTransfers: StallTransferReceipt[] = [];
   private liveNwcBalancesByNpub: Record<string, number> = {};
@@ -118,6 +114,10 @@ export class FlowerDaemon {
         recipientsByNpub: {
           [this.provider.npub]: { uri: config.providerNwcUri },
           [this.provider2.npub]: { uri: config.provider2NwcUri },
+          ...(config.provider3NwcUri ? { [this.provider3.npub]: { uri: config.provider3NwcUri } } : {}),
+        },
+        observersByNpub: {
+          ...(config.stallNwcUri ? { [this.settler.npub]: { uri: config.stallNwcUri } } : {}),
         },
       });
     } else {
@@ -221,6 +221,7 @@ export class FlowerDaemon {
 
   seedBlob(blobId: string, content: string): BlossomFixture {
     const blob = this.blossom.seed(createBlossomFixture(blobId, content));
+    this.cidToBlobId.set(blob.contentRef, blob.blobId);
     this.registerReplica(blob.contentRef, 'provider');
     this.registerReplica(blob.contentRef, 'provider2');
     return blob;
@@ -274,7 +275,7 @@ export class FlowerDaemon {
       throw new Error(`Unknown challenge ${challengeId}`);
     }
 
-    const blobId = parseBlossomBlobId(challenge.payload.contentRef);
+    const blobId = this.resolveBlobIdFromContentRef(challenge.payload.contentRef);
     const blob = await fetchBlossomObject(this.blossomBaseUrl, blobId);
     const revealNonce = randomId('reveal');
     const now = Math.floor(Date.now() / 1000);
@@ -370,7 +371,7 @@ export class FlowerDaemon {
       throw new Error(`Unknown transfer ${transferId}`);
     }
 
-    const blob = await fetchBlossomObject(this.blossomBaseUrl, parseBlossomBlobId(listingView.listing.payload.contentRef));
+    const blob = await fetchBlossomObject(this.blossomBaseUrl, this.resolveBlobIdFromContentRef(listingView.listing.payload.contentRef));
 
     return this.transport.publish(this.owner, {
       type: 'market.transfer_proof',
@@ -534,7 +535,7 @@ export class FlowerDaemon {
 
       const blob = await fetchBlossomObject(
         this.blossomBaseUrl,
-        parseBlossomBlobId(challengeView.challenge.payload.contentRef),
+        this.resolveBlobIdFromContentRef(challengeView.challenge.payload.contentRef),
       );
       await settlePublishedChallenge(this.transport, this.settler, challengeView.challenge, blob, undefined, undefined, this.payoutAdapter);
     }
@@ -583,6 +584,23 @@ export class FlowerDaemon {
     roots.set(role, hashLeaf(`${cid}:${role}`));
     this.replicaRootsByCid.set(cid, roots);
     this.inventoryByRole.get(role)?.add(cid);
+  }
+
+  private resolveBlobIdFromContentRef(contentRef: string): string {
+    if (contentRef.startsWith('blossom:')) {
+      return contentRef.slice('blossom:'.length);
+    }
+
+    const fromMap = this.cidToBlobId.get(contentRef);
+    if (fromMap) return fromMap;
+
+    const fixture = this.blossom.list().find((entry) => entry.contentRef === contentRef);
+    if (fixture) {
+      this.cidToBlobId.set(contentRef, fixture.blobId);
+      return fixture.blobId;
+    }
+
+    throw new Error(`Unknown contentRef for Blossom lookup: ${contentRef}`);
   }
 
   private signerForRole(role: 'provider' | 'provider2' | 'provider3'): RuntimeSigner {

@@ -11,6 +11,7 @@ export interface NwcWalletConfig {
 export interface NwcPayoutConfig {
   payer: NwcWalletConfig & { npub: string };
   recipientsByNpub: Record<string, NwcWalletConfig>;
+  observersByNpub?: Record<string, NwcWalletConfig>;
 }
 
 type WalletEntry = {
@@ -24,12 +25,16 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   private payerNpub: string;
   private payerClient: NWCClient;
   private recipientsByNpub: Record<string, NWCClient>;
+  private observersByNpub: Record<string, NWCClient>;
 
   constructor(config: NwcPayoutConfig) {
     this.payerNpub = config.payer.npub;
     this.payerClient = new NWCClient({ nostrWalletConnectUrl: config.payer.uri });
     this.recipientsByNpub = Object.fromEntries(
       Object.entries(config.recipientsByNpub).map(([npub, wallet]) => [npub, new NWCClient({ nostrWalletConnectUrl: wallet.uri })]),
+    );
+    this.observersByNpub = Object.fromEntries(
+      Object.entries(config.observersByNpub ?? {}).map(([npub, wallet]) => [npub, new NWCClient({ nostrWalletConnectUrl: wallet.uri })]),
     );
   }
 
@@ -87,6 +92,7 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     const wallets: WalletEntry[] = [
       { npub: this.payerNpub, client: this.payerClient },
       ...Object.entries(this.recipientsByNpub).map(([npub, client]) => ({ npub, client })),
+      ...Object.entries(this.observersByNpub).map(([npub, client]) => ({ npub, client })),
     ];
 
     const balances: Record<string, number> = {};
@@ -117,6 +123,11 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     } catch {}
 
     for (const client of Object.values(this.recipientsByNpub)) {
+      try {
+        client.close();
+      } catch {}
+    }
+    for (const client of Object.values(this.observersByNpub)) {
       try {
         client.close();
       } catch {}

@@ -68,7 +68,7 @@ export function createBlossomFixture(blobId: string, content: string): BlossomFi
   return {
     blobId,
     content,
-    contentRef: `blossom:${blobId}`,
+    contentRef: `cid:${root}`,
     leafHash: sample.leafHash,
     merkleRoot: root,
     sampleLeafHash: sample.leafHash,

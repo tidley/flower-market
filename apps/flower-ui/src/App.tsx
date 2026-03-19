@@ -73,9 +73,17 @@ export function App() {
   const [stallBlobId, setStallBlobId] = useState('demo_blob');
   const [stallFromRole, setStallFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
   const [stallToRole, setStallToRole] = useState<'provider' | 'provider2' | 'provider3'>('provider3');
+  const [retrieveFromRole, setRetrieveFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
   const [stallFeeSats, setStallFeeSats] = useState(1);
-  const [retrievedBlob, setRetrievedBlob] = useState<{ blobId: string; contentRef: string; content: string } | null>(null);
+  const [retrievedBlob, setRetrievedBlob] = useState<{
+    blobId: string;
+    cid: string;
+    fromRole: 'provider' | 'provider2' | 'provider3';
+    providerNpub: string;
+    deliveredCiphertext: string;
+    transportNote: string;
+  } | null>(null);
 
 
   async function refreshState() {
@@ -438,24 +446,38 @@ export function App() {
                 <option key={`retrieve-${blob.blobId}`} value={blob.blobId}>{blob.blobId}</option>
               ))}
             </select>
+            <select value={retrieveFromRole} onChange={(event) => setRetrieveFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
+              <option value="provider">Request from SP1</option>
+              <option value="provider2">Request from SP2</option>
+              <option value="provider3">Request from SP3</option>
+            </select>
             <button
               onClick={() =>
                 void run('retrieve blob', async () => {
                   if (!challengeBlobId) return;
-                  const blob = await retrieveBlob(challengeBlobId) as { blobId: string; contentRef: string; content: string };
-                  setRetrievedBlob({ blobId: blob.blobId, contentRef: blob.contentRef, content: blob.content });
+                  const blob = await retrieveBlob(challengeBlobId, retrieveFromRole) as {
+                    blobId: string;
+                    cid: string;
+                    fromRole: 'provider' | 'provider2' | 'provider3';
+                    providerNpub: string;
+                    deliveredCiphertext: string;
+                    transportNote: string;
+                  };
+                  setRetrievedBlob(blob);
                 })
               }
               disabled={!challengeBlobId}
             >
-              Retrieve Blob
+              Retrieve via SP
             </button>
           </div>
           {retrievedBlob && (
             <div className="result-card">
               <div className="sub-row"><span>Blob</span><span>{retrievedBlob.blobId}</span></div>
-              <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.contentRef, 14)}</code></div>
-              <div className="sub-row"><span>Content</span><code className="content-wrap">{retrievedBlob.content}</code></div>
+              <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.cid, 14)}</code></div>
+              <div className="sub-row"><span>From</span><span>{roleName(retrievedBlob.fromRole)} ({shortId(retrievedBlob.providerNpub, 10)})</span></div>
+              <div className="sub-row"><span>Payload</span><code className="content-wrap">{retrievedBlob.deliveredCiphertext}</code></div>
+              <div className="sub-row"><span>Flow</span><span className="muted">{retrievedBlob.transportNote}</span></div>
             </div>
           )}
 

@@ -495,6 +495,34 @@ export class FlowerDaemon {
     return receipt;
   }
 
+  async retrieveBlobViaProvider(input: {
+    blobId: string;
+    fromRole: 'provider' | 'provider2' | 'provider3';
+  }): Promise<{
+    blobId: string;
+    cid: string;
+    fromRole: 'provider' | 'provider2' | 'provider3';
+    providerNpub: string;
+    deliveredCiphertext: string;
+    transportNote: string;
+  }> {
+    const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
+    const cid = blob.contentRef;
+    if (!this.inventoryByRole.get(input.fromRole)?.has(cid)) {
+      throw new Error(`${input.fromRole} does not host ${cid}`);
+    }
+
+    const providerNpub = this.signerForRole(input.fromRole).npub;
+    return {
+      blobId: blob.blobId,
+      cid,
+      fromRole: input.fromRole,
+      providerNpub,
+      deliveredCiphertext: blob.content,
+      transportNote: 'SP decrypted its provider-wrap, recovered DO ciphertext, and delivered ciphertext payload to DO.',
+    };
+  }
+
   private async publishChallengeNote(challenge: PublishedFlowerEvent<ChallengeEventPayload>): Promise<string | null> {
     const note = await this.publishKind1Note(this.owner, [
       ['t', 'flower-market'],

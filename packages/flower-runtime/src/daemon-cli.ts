@@ -146,7 +146,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     nwcBalancePollSpacingMs: process.env.FLOWER_NWC_BALANCE_POLL_SPACING_MS
       ? Number(process.env.FLOWER_NWC_BALANCE_POLL_SPACING_MS)
       : 750,
-    ignoreRelayHistory: process.env.FLOWER_IGNORE_RELAY_HISTORY === 'true',
+    ignoreRelayHistory: process.env.FLOWER_IGNORE_RELAY_HISTORY !== 'false',
   });
 
   console.log(
@@ -157,6 +157,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
         relayMode: handle.daemon.relayMode,
         relayUrls: handle.daemon.relayUrls,
         payoutMode,
+        ignoreRelayHistory: process.env.FLOWER_IGNORE_RELAY_HISTORY !== 'false',
       },
       null,
       2,

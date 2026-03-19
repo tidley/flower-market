@@ -91,6 +91,11 @@ export class FlowerDaemon {
   private replicaRootsByCid = new Map<string, Map<'provider' | 'provider2' | 'provider3', string>>();
   private inventoryByRole = new Map<'provider' | 'provider2' | 'provider3', Set<string>>();
   private stallTransfers: StallTransferReceipt[] = [];
+  private liveNwcBalancesByNpub: Record<string, number> = {};
+  private nwcBalancePollInFlight = false;
+  private lastNwcBalancePollAt = 0;
+  private readonly nwcBalancePollIntervalMs = 30_000;
+  private lastLogAtByKey = new Map<string, number>();
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -137,7 +142,8 @@ export class FlowerDaemon {
     await this.tick();
     this.timer = setInterval(() => {
       this.tick().catch((error) => {
-        console.error('flower-runtime tick failed', error);
+        const message = error instanceof Error ? error.message : String(error);
+        this.logRateLimited(`tick:${message}`, 'flower-runtime tick failed', error);
       });
     }, this.syncIntervalMs);
   }
@@ -591,6 +597,37 @@ export class FlowerDaemon {
     map.set(role, (map.get(role) ?? 0) + amountMsats);
   }
 
+  private logRateLimited(key: string, label: string, error: unknown, intervalMs = 60_000): void {
+    const now = Date.now();
+    const last = this.lastLogAtByKey.get(key) ?? 0;
+    if (now - last < intervalMs) return;
+    this.lastLogAtByKey.set(key, now);
+    console.warn(label, error);
+  }
+
+  private maybeRefreshNwcBalances(): void {
+    if (!(this.payoutAdapter instanceof NwcPayoutAdapter)) return;
+    if (this.nwcBalancePollInFlight) return;
+    const now = Date.now();
+    if (now - this.lastNwcBalancePollAt < this.nwcBalancePollIntervalMs) return;
+
+    this.nwcBalancePollInFlight = true;
+    this.lastNwcBalancePollAt = now;
+
+    this.payoutAdapter
+      .getBalanceMsatsByNpub()
+      .then((balances) => {
+        this.liveNwcBalancesByNpub = balances;
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logRateLimited(`nwc-balance:${message}`, 'flower-runtime: failed to poll NWC balances', error);
+      })
+      .finally(() => {
+        this.nwcBalancePollInFlight = false;
+      });
+  }
+
   private async buildBalances(
     identities: RuntimeIdentityView[],
     settlements: PublishedFlowerEvent<SettlementEventPayload>[],
@@ -607,14 +644,8 @@ export class FlowerDaemon {
       }
     }
 
-    let liveBalancesByNpub: Record<string, number> = {};
-    if (this.payoutAdapter instanceof NwcPayoutAdapter) {
-      try {
-        liveBalancesByNpub = await this.payoutAdapter.getBalanceMsatsByNpub();
-      } catch (error) {
-        console.warn('flower-runtime: failed to poll NWC balances', error);
-      }
-    }
+    this.maybeRefreshNwcBalances();
+    const liveBalancesByNpub = this.liveNwcBalancesByNpub;
 
     return identities.map((identity) => {
       const fundedMsats = this.fundedMsatsByRole.get(identity.role) ?? 0;

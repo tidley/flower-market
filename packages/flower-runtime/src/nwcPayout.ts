@@ -12,6 +12,7 @@ export interface NwcPayoutConfig {
   payer: NwcWalletConfig & { npub: string };
   recipientsByNpub: Record<string, NwcWalletConfig>;
   observersByNpub?: Record<string, NwcWalletConfig>;
+  balancePollSpacingMs?: number;
 }
 
 type WalletEntry = {
@@ -26,6 +27,7 @@ export class NwcPayoutAdapter implements PayoutAdapter {
   private payerClient: NWCClient;
   private recipientsByNpub: Record<string, NWCClient>;
   private observersByNpub: Record<string, NWCClient>;
+  private balancePollSpacingMs: number;
 
   constructor(config: NwcPayoutConfig) {
     this.payerNpub = config.payer.npub;
@@ -36,6 +38,7 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     this.observersByNpub = Object.fromEntries(
       Object.entries(config.observersByNpub ?? {}).map(([npub, wallet]) => [npub, new NWCClient({ nostrWalletConnectUrl: wallet.uri })]),
     );
+    this.balancePollSpacingMs = Math.max(0, config.balancePollSpacingMs ?? 750);
   }
 
   async quote(request: PayoutRequest): Promise<PayoutQuote> {
@@ -99,13 +102,18 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     let successCount = 0;
     let lastError: unknown = null;
 
-    for (const wallet of wallets) {
+    for (let index = 0; index < wallets.length; index += 1) {
+      const wallet = wallets[index];
       try {
         const msats = await this.fetchBalanceMsats(wallet.client);
         balances[wallet.npub] = msats;
         successCount += 1;
       } catch (error) {
         lastError = error;
+      }
+
+      if (index < wallets.length - 1 && this.balancePollSpacingMs > 0) {
+        await sleep(this.balancePollSpacingMs);
       }
     }
 
@@ -158,6 +166,10 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     if (!Number.isFinite(request.amountMsats) || request.amountMsats <= 0) throw new Error('amountMsats must be > 0');
     if (!request.settlementRef) throw new Error('settlementRef is required');
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function coerceMsats(result: Record<string, unknown> | null | undefined): number | null {

@@ -47,6 +47,7 @@ export interface FlowerDaemonConfig {
   stallNwcUri?: string;
   nwcBalancePolling?: boolean;
   nwcBalancePollIntervalMs?: number;
+  nwcBalancePollSpacingMs?: number;
   ignoreRelayHistory?: boolean;
 }
 
@@ -127,6 +128,7 @@ export class FlowerDaemon {
         observersByNpub: {
           ...(config.stallNwcUri ? { [this.settler.npub]: { uri: config.stallNwcUri } } : {}),
         },
+        balancePollSpacingMs: config.nwcBalancePollSpacingMs ?? 750,
       });
     } else {
       this.payoutAdapter = new EcashPayoutAdapter({

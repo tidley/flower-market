@@ -177,10 +177,9 @@ export function App() {
     };
 
     const owner = toRow('owner');
-    const providers = ['provider3', 'provider', 'provider2']
+    const providers = ['provider', 'provider2', 'provider3']
       .map((role) => toRow(role))
-      .filter((row): row is NonNullable<typeof row> => Boolean(row))
-      .sort((a, b) => b.balance - a.balance);
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
     const stall = toRow('settler');
 
     const maxBalance = Math.max(0, owner?.balance ?? 0, ...providers.map((row) => row.balance));
@@ -338,7 +337,7 @@ export function App() {
 
         <p className="balance-section">• Stall</p>
         {balanceView.stall && (
-          <div className="balance-row inactive-row" key={balanceView.stall.role}>
+          <div className="balance-row" key={balanceView.stall.role}>
             <span className="participant">{balanceView.stall.label}</span>
             <span className="balance-num">{balanceView.stall.balance}</span>
             <span className="bar-cell">

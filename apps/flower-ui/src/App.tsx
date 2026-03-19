@@ -18,11 +18,11 @@ function emptySnapshot(): RuntimeSnapshot {
   };
 }
 
-type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2' | 'sp3';
+type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2' | 'sp3' | 'stall';
 
 function parseView(): DemoView {
   const raw = new URLSearchParams(window.location.search).get('view');
-  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2' || raw === 'sp3') return raw;
+  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2' || raw === 'sp3' || raw === 'stall') return raw;
   return 'all';
 }
 
@@ -35,6 +35,15 @@ function roleLabel(role: 'provider' | 'provider2' | 'provider3'): string {
   if (role === 'provider') return 'SP1';
   if (role === 'provider2') return 'SP2';
   return 'SP3';
+}
+
+function participantLabel(role: string): string {
+  if (role === 'owner') return 'DO (Owner)';
+  if (role === 'provider') return 'SP1';
+  if (role === 'provider2') return 'SP2';
+  if (role === 'provider3') return 'SP3';
+  if (role === 'settler') return 'Stall';
+  return role;
 }
 
 export function App() {
@@ -208,6 +217,8 @@ export function App() {
             <a href="/?view=sp2" target="_blank" rel="noreferrer">SP2</a>
             {' • '}
             <a href="/?view=sp3" target="_blank" rel="noreferrer">SP3</a>
+            {' • '}
+            <a href="/?view=stall" target="_blank" rel="noreferrer">Stall</a>
           </p>
         </div>
         <div className="hero-card">
@@ -220,7 +231,7 @@ export function App() {
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>Window Mode</h2>
         <div className="dual">
-          {(['all', 'challenger', 'sp1', 'sp2', 'sp3'] as DemoView[]).map((v) => (
+          {(['all', 'challenger', 'sp1', 'sp2', 'sp3', 'stall'] as DemoView[]).map((v) => (
             <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>{v}</button>
           ))}
         </div>
@@ -230,7 +241,7 @@ export function App() {
         <h2>Participant Balances</h2>
         {snapshot.balances.map((b) => (
           <div key={b.role} className="sub-row">
-            <span>{b.role}</span>
+            <span>{participantLabel(b.role)}</span>
             <span>{Math.round(b.balanceMsats / 1000)} sats</span>
             <span className="muted">funded {Math.round(b.fundedMsats / 1000)} / in {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}</span>
           </div>
@@ -553,6 +564,48 @@ export function App() {
                 )}
               </div>
             ))}
+        </section>
+      )}
+
+      {(view === 'all' || view === 'stall') && (
+        <section className="panel" style={{ marginTop: 16 }}>
+          <h2>Stall View</h2>
+          <p className="muted">Stall routes DO uploads/replication and re-encrypts data between SPs. Transfers below show source and target SP for each CID.</p>
+
+          <h3>Re-encryption / Transfer log</h3>
+          {snapshot.stallTransfers.length === 0 ? (
+            <p className="muted">No stall transfers yet.</p>
+          ) : (
+            snapshot.stallTransfers.map((receipt) => (
+              <div key={`stall-${receipt.transferId}`} className="result-card">
+                <div className="result-head">
+                  <strong>{receipt.transferId}</strong>
+                  <span className="badge">{roleLabel(receipt.fromRole)} → {roleLabel(receipt.toRole)}</span>
+                </div>
+                <div className="sub-row"><span>CID</span><code>{receipt.cid}</code></div>
+                <div className="sub-row"><span>Blob</span><span>{receipt.blobId}</span></div>
+                <div className="sub-row"><span>Requester</span><code>{receipt.requester.slice(0, 16)}…</code></div>
+                <div className="sub-row"><span>Supplier</span><code>{receipt.supplier.slice(0, 16)}…</code></div>
+                <div className="sub-row"><span>Supplier fee</span><span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span></div>
+                <div className="sub-row"><span>Stall fee</span><span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span></div>
+                <div className="sub-row"><span>Time</span><span>{fmtTs(receipt.createdAt)}</span></div>
+              </div>
+            ))
+          )}
+
+          <h3 style={{ marginTop: 16 }}>CID coverage by SP</h3>
+          {snapshot.replicaRegistry.length === 0 ? (
+            <p className="muted">No replicas registered yet.</p>
+          ) : (
+            snapshot.replicaRegistry.map((entry) => (
+              <div key={`stall-repl-${entry.cid}`} className="result-card">
+                <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
+                <div className="sub-row"><span>SP1</span><span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span></div>
+                <div className="sub-row"><span>SP2</span><span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span></div>
+                <div className="sub-row"><span>SP3</span><span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span></div>
+              </div>
+            ))
+          )}
         </section>
       )}
     </div>

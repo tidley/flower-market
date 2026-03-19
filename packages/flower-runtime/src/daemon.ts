@@ -46,6 +46,7 @@ export interface FlowerDaemonConfig {
   provider3NwcUri?: string;
   stallNwcUri?: string;
   nwcBalancePolling?: boolean;
+  ignoreRelayHistory?: boolean;
 }
 
 type PublishedMessage = {
@@ -94,6 +95,8 @@ export class FlowerDaemon {
   private readonly nwcBalancePollIntervalMs = 30_000;
   private lastLogAtByKey = new Map<string, number>();
   private nwcBalancePolling = true;
+  private ignoreRelayHistory = false;
+  private startedAtSec = Math.floor(Date.now() / 1000);
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -130,6 +133,7 @@ export class FlowerDaemon {
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
     this.nwcBalancePolling = config.nwcBalancePolling ?? true;
+    this.ignoreRelayHistory = config.ignoreRelayHistory ?? false;
     this.inventoryByRole.set('provider', new Set());
     this.inventoryByRole.set('provider2', new Set());
     this.inventoryByRole.set('provider3', new Set());
@@ -187,7 +191,13 @@ export class FlowerDaemon {
   }
 
   async getEvents(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
-    return this.transport.list(filter);
+    return this.listEvents(filter);
+  }
+
+  private async listEvents(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
+    const events = await this.transport.list(filter);
+    if (!this.ignoreRelayHistory) return events;
+    return events.filter((event) => event.createdAt >= this.startedAtSec);
   }
 
   getPublishedMessages(): PublishedMessage[] {
@@ -270,7 +280,7 @@ export class FlowerDaemon {
     commit: PublishedFlowerEvent<CommitEventPayload>;
     reveal: PublishedFlowerEvent<RevealEventPayload>;
   }> {
-    const events = await this.transport.list({ challengeId });
+    const events = await this.listEvents({ challengeId });
     const challenge = events.find(
       (event): event is PublishedFlowerEvent<ChallengeEventPayload> => event.payload.type === 'challenge',
     );
@@ -348,7 +358,7 @@ export class FlowerDaemon {
   }
 
   async publishAccept(offerId: string): Promise<PublishedFlowerEvent<MarketAcceptEventPayload>> {
-    const events = await this.transport.list();
+    const events = await this.listEvents();
     const offer = events.find(
       (event): event is PublishedFlowerEvent<MarketOfferEventPayload> =>
         event.payload.type === 'market.offer' && event.payload.offerId === offerId,

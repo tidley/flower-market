@@ -46,6 +46,12 @@ function participantLabel(role: string): string {
   return role;
 }
 
+function shortId(value: string, keep = 10): string {
+  if (!value) return value;
+  if (value.length <= keep * 2 + 1) return value;
+  return `${value.slice(0, keep)}…${value.slice(-keep)}`;
+}
+
 export function App() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(emptySnapshot);
   const [status, setStatus] = useState('Connecting to daemon...');
@@ -192,6 +198,22 @@ export function App() {
     };
   }, [snapshot.balances]);
 
+  const summary = useMemo(() => {
+    const totalSats = snapshot.balances.reduce((acc, b) => acc + Math.round(b.balanceMsats / 1000), 0);
+    const latest = snapshot.challenges.slice().sort((a, b) => b.challenge.createdAt - a.challenge.createdAt)[0] ?? null;
+    const latestStatus = latest?.settlement ? 'settled' : latest ? 'open' : 'no-rounds';
+    const activeProviders = ['provider', 'provider2', 'provider3'].filter((role) =>
+      snapshot.replicaRegistry.some((entry) => Boolean(entry.rootsByProvider[role])),
+    ).length;
+    return {
+      totalSats,
+      latestStatus,
+      openChallenges: openChallenges.length,
+      activeProviders,
+      transferCount: snapshot.stallTransfers.length,
+    };
+  }, [snapshot, openChallenges.length]);
+
   const spRows = useMemo(() => {
     const providerNpub = provider?.npub ?? 'unknown-provider';
     const provider2Npub = provider2?.npub ?? 'unknown-provider2';
@@ -235,6 +257,7 @@ export function App() {
       <section className="hero">
         <div>
           <h1>Flower Market</h1>
+          <p className="lede">Control surface for DO, providers, stall transfers, and challenge rounds.</p>
           <p>
             Quick links:{' '}
             <a href="/?view=challenger" target="_blank" rel="noreferrer">
@@ -265,7 +288,7 @@ export function App() {
           </div>
           <div className="stat">
             <span>Owner npub</span>
-            <strong style={{ fontSize: 12 }}>{owner?.npub ?? 'loading...'}</strong>
+            <strong style={{ fontSize: 12 }}>{owner?.npub ? shortId(owner.npub, 12) : 'loading...'}</strong>
           </div>
           <div className="stat">
             <span>Status</span>
@@ -274,9 +297,17 @@ export function App() {
         </div>
       </section>
 
+      <section className="summary-grid" style={{ marginBottom: 16 }}>
+        <div className="summary-card"><span>Latest round</span><strong className={`chip ${summary.latestStatus}`}>{summary.latestStatus}</strong></div>
+        <div className="summary-card"><span>Open challenges</span><strong>{summary.openChallenges}</strong></div>
+        <div className="summary-card"><span>Active providers</span><strong>{summary.activeProviders}/3</strong></div>
+        <div className="summary-card"><span>Total sats</span><strong>{summary.totalSats}</strong></div>
+        <div className="summary-card"><span>Stall transfers</span><strong>{summary.transferCount}</strong></div>
+      </section>
+
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>Window Mode</h2>
-        <div className="dual">
+        <div className="view-pills">
           {(['all', 'challenger', 'sp1', 'sp2', 'sp3', 'stall'] as DemoView[]).map((v) => (
             <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>
               {v}
@@ -536,25 +567,27 @@ export function App() {
             Request Transfer via Stall
           </button>
 
-          <h3 style={{ marginTop: 16 }}>Replica Registry (CID → SP roots)</h3>
-          {snapshot.replicaRegistry.length === 0 ? (
-            <p className="muted">No replica roots yet.</p>
-          ) : (
-            snapshot.replicaRegistry.map((entry) => (
-              <div key={entry.cid} className="result-card">
-                <div className="sub-row">
-                  <span>CID</span>
-                  <code>{entry.cid}</code>
-                </div>
-                {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
-                  <div key={`${entry.cid}-${sp}`} className="sub-row">
-                    <span>{sp}</span>
-                    <code>{root.slice(0, 24)}…</code>
+          <details className="evidence-block" style={{ marginTop: 16 }}>
+            <summary>Replica Registry (CID → SP roots)</summary>
+            {snapshot.replicaRegistry.length === 0 ? (
+              <p className="muted">No replica roots yet.</p>
+            ) : (
+              snapshot.replicaRegistry.map((entry) => (
+                <div key={entry.cid} className="result-card">
+                  <div className="sub-row">
+                    <span>CID</span>
+                    <code>{shortId(entry.cid, 14)}</code>
                   </div>
-                ))}
-              </div>
-            ))
-          )}
+                  {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
+                    <div key={`${entry.cid}-${sp}`} className="sub-row">
+                      <span>{sp}</span>
+                      <code>{shortId(root, 12)}</code>
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </details>
 
           <h3 style={{ marginTop: 16 }}>Market Stall Transfer Receipts</h3>
           {snapshot.stallTransfers.length === 0 ? (
@@ -612,8 +645,9 @@ export function App() {
             .map((entry) => (
               <div key={`${entry.challenge.id}-timeline`} className="result-card">
                 <div className="result-head">
-                  <strong>{entry.challenge.payload.challengeId}</strong>
+                  <strong>{shortId(entry.challenge.payload.challengeId, 8)}</strong>
                   <span className="badge">leaf #{entry.challenge.payload.leafIndex}</span>
+                  <span className={`chip ${entry.settlement ? 'settled' : 'open'}`}>{entry.settlement ? 'settled' : 'pending'}</span>
                 </div>
                 <div className="sub-row">
                   <span>Challenge posted</span>
@@ -696,40 +730,42 @@ export function App() {
             ))
           )}
 
-          <h3 style={{ marginTop: 16 }}>Published Messages</h3>
-          {publishedEvents.length === 0 ? (
-            <p className="muted">No published Flower messages yet.</p>
-          ) : (
-            publishedEvents.slice(0, 30).map((event) => {
-              const tagMap = new Map(event.tags.map((t) => [t[0], t[1]]));
-              const eventType =
-                tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
-              return (
-                <div key={event.id} className="result-card">
-                  <div className="result-head">
-                    <strong>{eventType}</strong>
-                    <span className="badge">kind {event.kind}</span>
+          <details className="evidence-block" style={{ marginTop: 16 }}>
+            <summary>Published Messages</summary>
+            {publishedEvents.length === 0 ? (
+              <p className="muted">No published Flower messages yet.</p>
+            ) : (
+              publishedEvents.slice(0, 30).map((event) => {
+                const tagMap = new Map(event.tags.map((t) => [t[0], t[1]]));
+                const eventType =
+                  tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
+                return (
+                  <div key={event.id} className="result-card">
+                    <div className="result-head">
+                      <strong>{eventType}</strong>
+                      <span className="badge">kind {event.kind}</span>
+                    </div>
+                    <div className="sub-row">
+                      <span>id</span>
+                      <code>{shortId(event.id, 14)}</code>
+                    </div>
+                    <div className="sub-row">
+                      <span>time</span>
+                      <span>{fmtTs(event.createdAt)}</span>
+                    </div>
+                    <div className="sub-row">
+                      <span>author</span>
+                      <code>{shortId(event.pubkey, 10)}</code>
+                    </div>
+                    <div className="sub-row">
+                      <span>content</span>
+                      <code className="content-wrap">{event.content}</code>
+                    </div>
                   </div>
-                  <div className="sub-row">
-                    <span>id</span>
-                    <code>{event.id}</code>
-                  </div>
-                  <div className="sub-row">
-                    <span>time</span>
-                    <span>{fmtTs(event.createdAt)}</span>
-                  </div>
-                  <div className="sub-row">
-                    <span>author</span>
-                    <code>{event.pubkey.slice(0, 16)}…</code>
-                  </div>
-                  <div className="sub-row">
-                    <span>content</span>
-                    <code className="content-wrap">{event.content}</code>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </details>
         </section>
       )}
 
@@ -740,8 +776,12 @@ export function App() {
             .map((sp) => (
               <div className="panel" key={sp.id}>
                 <h2>{sp.label}</h2>
+                <div className="result-head" style={{ marginBottom: 8 }}>
+                  <span className={`chip ${sp.files.length > 0 ? 'settled' : 'open'}`}>{sp.files.length > 0 ? 'active' : 'idle'}</span>
+                  <span className="chip open">open {openChallenges.length}</span>
+                </div>
                 <p>
-                  <strong>npub:</strong> <code>{sp.npub}</code>
+                  <strong>npub:</strong> <code>{shortId(sp.npub, 12)}</code>
                 </p>
                 <p>
                   <strong>Last paid:</strong> {fmtTs(sp.lastPaid)}
@@ -865,19 +905,19 @@ export function App() {
                   </div>
                   <div className="sub-row">
                     <span>CID</span>
-                    <code>{entry.cid}</code>
+                    <code>{shortId(entry.cid, 14)}</code>
                   </div>
                   <div className="sub-row">
                     <span>SP1</span>
-                    <span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span>
+                    <span className={`chip ${entry.rootsByProvider.provider ? 'settled' : 'open'}`}>{entry.rootsByProvider.provider ? 'covered' : 'missing'}</span>
                   </div>
                   <div className="sub-row">
                     <span>SP2</span>
-                    <span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span>
+                    <span className={`chip ${entry.rootsByProvider.provider2 ? 'settled' : 'open'}`}>{entry.rootsByProvider.provider2 ? 'covered' : 'missing'}</span>
                   </div>
                   <div className="sub-row">
                     <span>SP3</span>
-                    <span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span>
+                    <span className={`chip ${entry.rootsByProvider.provider3 ? 'settled' : 'open'}`}>{entry.rootsByProvider.provider3 ? 'covered' : 'missing'}</span>
                   </div>
                 </div>
               );

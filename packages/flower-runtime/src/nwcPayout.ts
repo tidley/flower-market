@@ -90,13 +90,22 @@ export class NwcPayoutAdapter implements PayoutAdapter {
     ];
 
     const balances: Record<string, number> = {};
+    let successCount = 0;
+    let lastError: unknown = null;
+
     for (const wallet of wallets) {
       try {
         const msats = await this.fetchBalanceMsats(wallet.client);
         balances[wallet.npub] = msats;
+        successCount += 1;
       } catch (error) {
-        console.warn(`flower-runtime: NWC balance poll failed for ${wallet.npub.slice(0, 12)}…`, error);
+        lastError = error;
       }
+    }
+
+    if (successCount === 0 && lastError) {
+      const message = lastError instanceof Error ? lastError.message : String(lastError);
+      throw new Error(`All NWC balance polls failed: ${message}`);
     }
 
     return balances;

@@ -597,14 +597,18 @@ export function App() {
           {snapshot.replicaRegistry.length === 0 ? (
             <p className="muted">No replicas registered yet.</p>
           ) : (
-            snapshot.replicaRegistry.map((entry) => (
-              <div key={`stall-repl-${entry.cid}`} className="result-card">
-                <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
-                <div className="sub-row"><span>SP1</span><span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span></div>
-                <div className="sub-row"><span>SP2</span><span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span></div>
-                <div className="sub-row"><span>SP3</span><span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span></div>
-              </div>
-            ))
+            snapshot.replicaRegistry.map((entry) => {
+              const blobName = snapshot.blobs.find((blob) => blob.contentRef === entry.cid)?.blobId ?? 'unknown';
+              return (
+                <div key={`stall-repl-${entry.cid}`} className="result-card">
+                  <div className="sub-row"><span>Blob</span><span>{blobName}</span></div>
+                  <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
+                  <div className="sub-row"><span>SP1</span><span>{entry.rootsByProvider.provider ? 'yes' : 'no'}</span></div>
+                  <div className="sub-row"><span>SP2</span><span>{entry.rootsByProvider.provider2 ? 'yes' : 'no'}</span></div>
+                  <div className="sub-row"><span>SP3</span><span>{entry.rootsByProvider.provider3 ? 'yes' : 'no'}</span></div>
+                </div>
+              );
+            })
           )}
         </section>
       )}

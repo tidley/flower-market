@@ -1,6 +1,32 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { startFlowerDaemonServer } from './server.ts';
 
 const DEFAULT_RELAYS = ['wss://nos.lol', 'wss://relay.damus.io'];
+
+function loadDotEnv(): void {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) return;
+
+  const raw = readFileSync(envPath, 'utf8');
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+
+    const key = trimmed.slice(0, eq).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
 
 function parseRelayUrls(argv: string[]): string[] {
   const relays: string[] = [];
@@ -18,6 +44,7 @@ function wantsMemoryMode(argv: string[]): boolean {
 }
 
 async function main(argv = process.argv.slice(2)): Promise<void> {
+  loadDotEnv();
   const cliRelays = parseRelayUrls(argv);
   const envRelays = process.env.FLOWER_RELAYS?.split(',').map((s) => s.trim()).filter(Boolean);
   const relayUrls = wantsMemoryMode(argv)

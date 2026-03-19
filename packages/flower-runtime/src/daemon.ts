@@ -46,6 +46,7 @@ export interface FlowerDaemonConfig {
   provider3NwcUri?: string;
   stallNwcUri?: string;
   nwcBalancePolling?: boolean;
+  nwcBalancePollIntervalMs?: number;
   ignoreRelayHistory?: boolean;
 }
 
@@ -92,7 +93,9 @@ export class FlowerDaemon {
   private liveNwcBalancesByNpub: Record<string, number> = {};
   private nwcBalancePollInFlight = false;
   private lastNwcBalancePollAt = 0;
-  private readonly nwcBalancePollIntervalMs = 30_000;
+  private nwcBalancePollIntervalMs = 90_000;
+  private nwcBalancePollBackoffMs = 0;
+  private readonly nwcBalancePollMaxBackoffMs = 10 * 60_000;
   private lastLogAtByKey = new Map<string, number>();
   private nwcBalancePolling = true;
   private ignoreRelayHistory = false;
@@ -133,6 +136,7 @@ export class FlowerDaemon {
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
     this.nwcBalancePolling = config.nwcBalancePolling ?? true;
+    this.nwcBalancePollIntervalMs = Math.max(15_000, config.nwcBalancePollIntervalMs ?? 90_000);
     this.ignoreRelayHistory = config.ignoreRelayHistory ?? false;
     this.inventoryByRole.set('provider', new Set());
     this.inventoryByRole.set('provider2', new Set());
@@ -649,8 +653,10 @@ export class FlowerDaemon {
     if (!this.nwcBalancePolling) return;
     if (!(this.payoutAdapter instanceof NwcPayoutAdapter)) return;
     if (this.nwcBalancePollInFlight) return;
+
     const now = Date.now();
-    if (now - this.lastNwcBalancePollAt < this.nwcBalancePollIntervalMs) return;
+    const effectiveInterval = this.nwcBalancePollIntervalMs + this.nwcBalancePollBackoffMs;
+    if (now - this.lastNwcBalancePollAt < effectiveInterval) return;
 
     this.nwcBalancePollInFlight = true;
     this.lastNwcBalancePollAt = now;
@@ -659,10 +665,19 @@ export class FlowerDaemon {
       .getBalanceMsatsByNpub()
       .then((balances) => {
         this.liveNwcBalancesByNpub = balances;
+        this.nwcBalancePollBackoffMs = 0;
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        this.logRateLimited(`nwc-balance:${message}`, 'flower-runtime: failed to poll NWC balances', error);
+        this.nwcBalancePollBackoffMs = Math.min(
+          this.nwcBalancePollBackoffMs > 0 ? this.nwcBalancePollBackoffMs * 2 : this.nwcBalancePollIntervalMs,
+          this.nwcBalancePollMaxBackoffMs,
+        );
+        this.logRateLimited(
+          `nwc-balance:${message}`,
+          `flower-runtime: failed to poll NWC balances (backoff ${Math.round(this.nwcBalancePollBackoffMs / 1000)}s)`,
+          error,
+        );
       })
       .finally(() => {
         this.nwcBalancePollInFlight = false;

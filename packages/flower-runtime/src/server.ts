@@ -59,7 +59,7 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
       }
 
       if (request.method === 'POST' && url.pathname === '/api/funding') {
-        const body = await readJson<{ role: 'owner' | 'provider' | 'provider2' | 'settler'; sats: number }>(request);
+        const body = await readJson<{ role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler'; sats: number }>(request);
         daemon.addFunding(body.role, body.sats);
         json(response, 200, await daemon.getSnapshot());
         return;
@@ -78,10 +78,22 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
       }
 
       if (request.method === 'POST' && url.pathname === '/api/challenges/respond') {
-        const body = await readJson<{ challengeId: string; providerRole?: 'provider' | 'provider2' }>(request);
+        const body = await readJson<{ challengeId: string; providerRole?: 'provider' | 'provider2' | 'provider3' }>(request);
         const result = await daemon.respondToChallenge(body.challengeId, body.providerRole ?? 'provider');
         await daemon.tick();
         json(response, 200, result);
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/stall/transfers') {
+        const body = await readJson<{
+          blobId: string;
+          fromRole: 'provider' | 'provider2' | 'provider3';
+          toRole: 'provider' | 'provider2' | 'provider3';
+          supplierFeeSats: number;
+          stallFeeSats: number;
+        }>(request);
+        json(response, 200, await daemon.requestTransferViaStall(body));
         return;
       }
 

@@ -23,7 +23,6 @@ describe('FlowerDaemon', () => {
       commitLeadSeconds: 30,
       revealLeadSeconds: 60,
     });
-    await daemon.respondToChallenge(challenge.payload.challengeId);
     await daemon.tick();
 
     const listing = await daemon.publishListing({
@@ -41,8 +40,9 @@ describe('FlowerDaemon', () => {
     const settledChallenge = snapshot.challenges.find((entry) => entry.challenge.payload.challengeId === challenge.payload.challengeId);
     const settledListing = snapshot.listings.find((entry) => entry.listing.payload.listingId === listing.payload.listingId);
 
-    expect(settledChallenge?.settlement?.payload.winners).toHaveLength(1);
-    expect(settledChallenge?.settlement?.payload.winners[0]?.baseSats).toBe(15);
+    const winners = settledChallenge?.settlement?.payload.winners ?? [];
+    expect(winners).toHaveLength(3);
+    expect(winners.map((winner) => winner.baseSats)).toEqual([15, 10, 5]);
     expect(settledListing?.settlement?.payload.verified).toBe(true);
     expect(settledListing?.settlement?.payload.eligibility).toBe('pending');
   });

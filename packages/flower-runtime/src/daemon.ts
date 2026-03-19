@@ -1,4 +1,4 @@
-import { deriveEligibilityState, verifyTransferProof } from '../../flower-contextvm/src/index.ts';
+import { deriveEligibilityState, hashLeaf, verifyTransferProof } from '../../flower-contextvm/src/index.ts';
 import { EcashPayoutAdapter, type PayoutAdapter } from '../../flower-payout/src/index.ts';
 import { finalizeEvent, SimplePool } from 'nostr-tools';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
@@ -21,7 +21,9 @@ import type {
   RuntimeSigner,
   RuntimeSnapshot,
   RevealEventPayload,
+  ReplicaRegistryEntry,
   SettlementEventPayload,
+  StallTransferReceipt,
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
 
@@ -63,12 +65,14 @@ const TEST_CASHU_MNEMONICS = {
   challenger: 'invest unit fire blood melt elephant ancient erase way neck insane clutch',
   sp1: 'child armor company physical spatial gather draw tired push heavy parrot lemon',
   sp2: 'orbit maple badge rabbit vocal silver upset canyon flush syrup cotton drill',
+  sp3: 'olive eager domain pistol ladder spell kingdom absorb trick utility fossil render',
 } as const;
 
 export class FlowerDaemon {
   readonly owner: RuntimeSigner;
   readonly provider: RuntimeSigner;
   readonly provider2: RuntimeSigner;
+  readonly provider3: RuntimeSigner;
   readonly settler: RuntimeSigner;
   readonly relayMode: 'memory' | 'nostr';
   readonly relayUrls: string[];
@@ -82,11 +86,17 @@ export class FlowerDaemon {
   private ticking = false;
   private publishedMessages: PublishedMessage[] = [];
   private fundedMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
+  private marketIncomingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
+  private marketOutgoingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
+  private replicaRootsByCid = new Map<string, Map<'provider' | 'provider2' | 'provider3', string>>();
+  private inventoryByRole = new Map<'provider' | 'provider2' | 'provider3', Set<string>>();
+  private stallTransfers: StallTransferReceipt[] = [];
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
     this.provider = createRuntimeSigner(config.providerSecretKeyHex);
     this.provider2 = createRuntimeSigner(config.provider2SecretKeyHex);
+    this.provider3 = createRuntimeSigner();
     this.settler = createRuntimeSigner(config.settlerSecretKeyHex);
     this.relayUrls = config.relayUrls ?? [];
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
@@ -112,6 +122,9 @@ export class FlowerDaemon {
     }
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
+    this.inventoryByRole.set('provider', new Set());
+    this.inventoryByRole.set('provider2', new Set());
+    this.inventoryByRole.set('provider3', new Set());
   }
 
   async start(blossomPort = 0): Promise<void> {
@@ -195,11 +208,16 @@ export class FlowerDaemon {
       blobs: this.blossom.list(),
       challenges: buildChallengeViews(parsed),
       listings: buildMarketplaceViews(parsed),
+      replicaRegistry: this.getReplicaRegistry(),
+      stallTransfers: this.stallTransfers.slice().sort((a, b) => b.createdAt - a.createdAt),
     };
   }
 
   seedBlob(blobId: string, content: string): BlossomFixture {
-    return this.blossom.seed(createBlossomFixture(blobId, content));
+    const blob = this.blossom.seed(createBlossomFixture(blobId, content));
+    this.registerReplica(blob.contentRef, 'provider');
+    this.registerReplica(blob.contentRef, 'provider2');
+    return blob;
   }
 
   async publishChallenge(input: {
@@ -218,7 +236,7 @@ export class FlowerDaemon {
       epoch: now,
       contentRef: blob.contentRef,
       merkleRoot: blob.merkleRoot,
-      leafIndex: 0,
+      leafIndex: Math.floor(Math.random() * Math.max(1, blob.leafProofs?.length ?? 1)),
       nonce: randomId('nonce'),
       commitDeadline: now + input.commitLeadSeconds,
       revealDeadline: now + input.revealLeadSeconds,
@@ -230,13 +248,15 @@ export class FlowerDaemon {
 
     const sp1 = await this.respondToChallenge(event.payload.challengeId, 'provider');
     const sp2 = await this.respondToChallenge(event.payload.challengeId, 'provider2');
+    const sp3 = await this.respondToChallenge(event.payload.challengeId, 'provider3');
     await this.publishProofReplyNote(event, challengeNoteId, 'provider', sp1.reveal, sp1.commit);
     await this.publishProofReplyNote(event, challengeNoteId, 'provider2', sp2.reveal, sp2.commit);
+    await this.publishProofReplyNote(event, challengeNoteId, 'provider3', sp3.reveal, sp3.commit);
 
     return event;
   }
 
-  async respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' = 'provider'): Promise<{
+  async respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' | 'provider3' = 'provider'): Promise<{
     commit: PublishedFlowerEvent<CommitEventPayload>;
     reveal: PublishedFlowerEvent<RevealEventPayload>;
   }> {
@@ -252,13 +272,18 @@ export class FlowerDaemon {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, blobId);
     const revealNonce = randomId('reveal');
     const now = Math.floor(Date.now() / 1000);
-    const responderSigner = providerRole === 'provider2' ? this.provider2 : this.provider;
+    const responderSigner = this.signerForRole(providerRole);
+    const challengedLeafIndex = challenge.payload.leafIndex;
+    const selectedLeaf = blob.leafProofs?.[challengedLeafIndex] ?? {
+      leafHash: blob.sampleLeafHash,
+      proof: blob.sampleProof,
+    };
 
     const commit = await this.transport.publish(responderSigner, {
       type: 'commit',
       challengeId,
       responder: responderSigner.npub,
-      commitHash: buildCommitHash(challengeId, responderSigner.npub, blob.leafHash, revealNonce),
+      commitHash: buildCommitHash(challengeId, responderSigner.npub, selectedLeaf.leafHash, revealNonce),
       commitTs: now,
     });
 
@@ -270,8 +295,8 @@ export class FlowerDaemon {
       revealTs: now + 1,
       latencyMs: 75,
       reliabilityScore: 0.96,
-      leafHash: blob.leafHash,
-      proof: blob.sampleProof,
+      leafHash: selectedLeaf.leafHash,
+      proof: selectedLeaf.proof,
       expectedRoot: blob.merkleRoot,
       revealNonce,
     });
@@ -355,6 +380,53 @@ export class FlowerDaemon {
     });
   }
 
+  async requestTransferViaStall(input: {
+    blobId: string;
+    fromRole: 'provider' | 'provider2' | 'provider3';
+    toRole: 'provider' | 'provider2' | 'provider3';
+    supplierFeeSats: number;
+    stallFeeSats: number;
+  }): Promise<StallTransferReceipt> {
+    if (input.fromRole === input.toRole) {
+      throw new Error('fromRole and toRole must differ');
+    }
+
+    const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
+    const cid = blob.contentRef;
+    if (!this.inventoryByRole.get(input.fromRole)?.has(cid)) {
+      throw new Error(`${input.fromRole} does not host ${cid}`);
+    }
+
+    this.registerReplica(cid, input.toRole);
+
+    const supplierFeeMsats = Math.max(0, Math.round(input.supplierFeeSats * 1000));
+    const stallFeeMsats = Math.max(0, Math.round(input.stallFeeSats * 1000));
+
+    this.bumpMarketFlow(input.toRole, 'out', supplierFeeMsats + stallFeeMsats);
+    this.bumpMarketFlow(input.fromRole, 'in', Math.max(0, supplierFeeMsats - stallFeeMsats));
+    this.bumpMarketFlow('settler', 'in', stallFeeMsats);
+
+    const requester = this.signerForRole(input.toRole).npub;
+    const supplier = this.signerForRole(input.fromRole).npub;
+    const stall = this.settler.npub;
+
+    const receipt: StallTransferReceipt = {
+      transferId: randomId('stall'),
+      cid,
+      blobId: input.blobId,
+      fromRole: input.fromRole,
+      toRole: input.toRole,
+      supplierFeeMsats,
+      stallFeeMsats,
+      requester,
+      supplier,
+      stall,
+      createdAt: Math.floor(Date.now() / 1000),
+    };
+    this.stallTransfers.push(receipt);
+    return receipt;
+  }
+
   private async publishChallengeNote(challenge: PublishedFlowerEvent<ChallengeEventPayload>): Promise<string | null> {
     const note = await this.publishKind1Note(this.owner, [
       ['t', 'flower-market'],
@@ -369,11 +441,11 @@ export class FlowerDaemon {
   private async publishProofReplyNote(
     challenge: PublishedFlowerEvent<ChallengeEventPayload>,
     challengeNoteId: string | null,
-    providerRole: 'provider' | 'provider2',
+    providerRole: 'provider' | 'provider2' | 'provider3',
     reveal: PublishedFlowerEvent<RevealEventPayload>,
     commit: PublishedFlowerEvent<CommitEventPayload>,
   ): Promise<void> {
-    const signer = providerRole === 'provider2' ? this.provider2 : this.provider;
+    const signer = this.signerForRole(providerRole);
     const revealSig = this.rawEventSig(reveal.raw);
 
     const tags: string[][] = [
@@ -493,6 +565,32 @@ export class FlowerDaemon {
     }
   }
 
+  private getReplicaRegistry(): ReplicaRegistryEntry[] {
+    return [...this.replicaRootsByCid.entries()].map(([cid, roots]) => ({
+      cid,
+      rootsByProvider: Object.fromEntries([...roots.entries()]),
+    }));
+  }
+
+  private registerReplica(cid: string, role: 'provider' | 'provider2' | 'provider3'): void {
+    const roots = this.replicaRootsByCid.get(cid) ?? new Map<'provider' | 'provider2' | 'provider3', string>();
+    roots.set(role, hashLeaf(`${cid}:${role}`));
+    this.replicaRootsByCid.set(cid, roots);
+    this.inventoryByRole.get(role)?.add(cid);
+  }
+
+  private signerForRole(role: 'provider' | 'provider2' | 'provider3'): RuntimeSigner {
+    if (role === 'provider2') return this.provider2;
+    if (role === 'provider3') return this.provider3;
+    return this.provider;
+  }
+
+  private bumpMarketFlow(role: RuntimeIdentityView['role'], direction: 'in' | 'out', amountMsats: number): void {
+    if (amountMsats <= 0) return;
+    const map = direction === 'in' ? this.marketIncomingMsatsByRole : this.marketOutgoingMsatsByRole;
+    map.set(role, (map.get(role) ?? 0) + amountMsats);
+  }
+
   private async buildBalances(
     identities: RuntimeIdentityView[],
     settlements: PublishedFlowerEvent<SettlementEventPayload>[],
@@ -520,8 +618,12 @@ export class FlowerDaemon {
 
     return identities.map((identity) => {
       const fundedMsats = this.fundedMsatsByRole.get(identity.role) ?? 0;
-      const incomingMsats = incomingByNpub.get(identity.npub) ?? 0;
-      const outgoingMsats = outgoingByNpub.get(identity.npub) ?? 0;
+      const settlementIncomingMsats = incomingByNpub.get(identity.npub) ?? 0;
+      const settlementOutgoingMsats = outgoingByNpub.get(identity.npub) ?? 0;
+      const marketIncomingMsats = this.marketIncomingMsatsByRole.get(identity.role) ?? 0;
+      const marketOutgoingMsats = this.marketOutgoingMsatsByRole.get(identity.role) ?? 0;
+      const incomingMsats = settlementIncomingMsats + marketIncomingMsats;
+      const outgoingMsats = settlementOutgoingMsats + marketOutgoingMsats;
       const runtimeBalance = fundedMsats + incomingMsats - outgoingMsats;
       const liveBalance = liveBalancesByNpub[identity.npub];
       return {
@@ -555,6 +657,12 @@ export class FlowerDaemon {
         npub: this.provider2.npub,
         pubkey: this.provider2.publicKey,
         cashuTestMnemonic: TEST_CASHU_MNEMONICS.sp2,
+      },
+      {
+        role: 'provider3',
+        npub: this.provider3.npub,
+        pubkey: this.provider3.publicKey,
+        cashuTestMnemonic: TEST_CASHU_MNEMONICS.sp3,
       },
       { role: 'settler', npub: this.settler.npub, pubkey: this.settler.publicKey },
     ];

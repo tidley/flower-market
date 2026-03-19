@@ -177,6 +177,10 @@ export interface BlossomFixture {
   merkleRoot: string;
   sampleLeafHash: string;
   sampleProof: MerkleProofNode[];
+  leafProofs?: Array<{
+    leafHash: string;
+    proof: MerkleProofNode[];
+  }>;
 }
 
 export interface RetrievedBlossomObject extends BlossomFixture {
@@ -220,7 +224,7 @@ export interface MarketplaceRuntimeView {
 }
 
 export interface RuntimeIdentityView {
-  role: 'owner' | 'provider' | 'provider2' | 'settler';
+  role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler';
   npub: string;
   pubkey: string;
   cashuTestMnemonic?: string;
@@ -236,6 +240,25 @@ export interface RuntimeBalanceView {
   balanceMsats: number;
 }
 
+export interface ReplicaRegistryEntry {
+  cid: string;
+  rootsByProvider: Record<string, string>;
+}
+
+export interface StallTransferReceipt {
+  transferId: string;
+  cid: string;
+  blobId: string;
+  fromRole: 'provider' | 'provider2' | 'provider3';
+  toRole: 'provider' | 'provider2' | 'provider3';
+  supplierFeeMsats: number;
+  stallFeeMsats: number;
+  requester: string;
+  supplier: string;
+  stall: string;
+  createdAt: number;
+}
+
 export interface RuntimeSnapshot {
   updatedAt: number;
   relayMode: 'memory' | 'nostr';
@@ -246,4 +269,6 @@ export interface RuntimeSnapshot {
   blobs: BlossomFixture[];
   challenges: ChallengeRuntimeView[];
   listings: MarketplaceRuntimeView[];
+  replicaRegistry: ReplicaRegistryEntry[];
+  stallTransfers: StallTransferReceipt[];
 }

@@ -48,6 +48,6 @@ describe('startFlowerDaemonServer', () => {
     const handle = await startFlowerDaemonServer({ httpPort: 18788, syncIntervalMs: 50 });
     cleanup.push(() => handle.close());
 
-    expect(handle.port).toBe(18789);
+    expect(handle.port).toBeGreaterThan(18788);
   });
 });

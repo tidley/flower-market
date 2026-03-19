@@ -1,7 +1,8 @@
 import { createServer, get, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 
-import { hashLeaf } from '../../flower-contextvm/src/index.ts';
+import { hashLeaf, hashPair } from '../../flower-contextvm/src/index.ts';
+import type { MerkleProofNode } from '../../flower-contextvm/src/proof.ts';
 import type { BlossomFixture, RetrievedBlossomObject } from './types.ts';
 
 function json(response: ServerResponse, statusCode: number, body: unknown): void {
@@ -9,16 +10,70 @@ function json(response: ServerResponse, statusCode: number, body: unknown): void
   response.end(JSON.stringify(body));
 }
 
+function chunkContent(content: string, chunkSize = 32): string[] {
+  if (!content.length) return [''];
+  const chunks: string[] = [];
+  for (let i = 0; i < content.length; i += chunkSize) {
+    chunks.push(content.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+function buildLeafProofs(leafHashes: string[]): { root: string; proofs: Array<{ leafHash: string; proof: MerkleProofNode[] }> } {
+  if (leafHashes.length === 0) {
+    const leafHash = hashLeaf('');
+    return { root: leafHash, proofs: [{ leafHash, proof: [] }] };
+  }
+
+  const proofs = leafHashes.map((leafHash) => ({ leafHash, proof: [] as MerkleProofNode[] }));
+  let level = leafHashes.map((hash, index) => ({ hash, indices: [index] }));
+
+  while (level.length > 1) {
+    const next: Array<{ hash: string; indices: number[] }> = [];
+
+    for (let i = 0; i < level.length; i += 2) {
+      const left = level[i];
+      const right = level[i + 1];
+
+      if (!right) {
+        next.push(left);
+        continue;
+      }
+
+      for (const idx of left.indices) {
+        proofs[idx].proof.push({ hash: right.hash, position: 'right' });
+      }
+      for (const idx of right.indices) {
+        proofs[idx].proof.push({ hash: left.hash, position: 'left' });
+      }
+
+      next.push({
+        hash: hashPair(left.hash, right.hash),
+        indices: [...left.indices, ...right.indices],
+      });
+    }
+
+    level = next;
+  }
+
+  return { root: level[0].hash, proofs };
+}
+
 export function createBlossomFixture(blobId: string, content: string): BlossomFixture {
-  const leafHash = hashLeaf(content);
+  const leafChunks = chunkContent(content);
+  const leafHashes = leafChunks.map((chunk) => hashLeaf(chunk));
+  const { root, proofs } = buildLeafProofs(leafHashes);
+  const sample = proofs[0] ?? { leafHash: hashLeaf(content), proof: [] };
+
   return {
     blobId,
     content,
     contentRef: `blossom:${blobId}`,
-    leafHash,
-    merkleRoot: leafHash,
-    sampleLeafHash: leafHash,
-    sampleProof: [],
+    leafHash: sample.leafHash,
+    merkleRoot: root,
+    sampleLeafHash: sample.leafHash,
+    sampleProof: sample.proof,
+    leafProofs: proofs,
   };
 }
 

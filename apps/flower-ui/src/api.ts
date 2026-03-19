@@ -34,7 +34,7 @@ export function uploadBlob(blobId: string, content: string) {
   });
 }
 
-export function addFunding(role: 'owner' | 'provider' | 'provider2' | 'settler', sats: number) {
+export function addFunding(role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler', sats: number) {
   return request('/api/funding', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -56,7 +56,7 @@ export function createChallenge(input: {
   });
 }
 
-export function respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' = 'provider') {
+export function respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' | 'provider3' = 'provider') {
   return request('/api/challenges/respond', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -98,5 +98,19 @@ export function publishTransferProof(transferId: string) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ transferId }),
+  });
+}
+
+export function requestStallTransfer(input: {
+  blobId: string;
+  fromRole: 'provider' | 'provider2' | 'provider3';
+  toRole: 'provider' | 'provider2' | 'provider3';
+  supplierFeeSats: number;
+  stallFeeSats: number;
+}) {
+  return request('/api/stall/transfers', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
   });
 }

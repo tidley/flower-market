@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchPublishedMessages, fetchRuntimeState, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
+import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestStallTransfer, respondToChallenge, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -13,20 +13,28 @@ function emptySnapshot(): RuntimeSnapshot {
     blobs: [],
     challenges: [],
     listings: [],
+    replicaRegistry: [],
+    stallTransfers: [],
   };
 }
 
-type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2';
+type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2' | 'sp3';
 
 function parseView(): DemoView {
   const raw = new URLSearchParams(window.location.search).get('view');
-  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2') return raw;
+  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2' || raw === 'sp3') return raw;
   return 'all';
 }
 
 function fmtTs(ts: number | null): string {
   if (!ts) return 'never';
   return new Date(ts * 1000).toISOString();
+}
+
+function roleLabel(role: 'provider' | 'provider2' | 'provider3'): string {
+  if (role === 'provider') return 'SP1';
+  if (role === 'provider2') return 'SP2';
+  return 'SP3';
 }
 
 export function App() {
@@ -40,6 +48,11 @@ export function App() {
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
   const [publishedEvents, setPublishedEvents] = useState<PublishedMessage[]>([]);
+  const [stallBlobId, setStallBlobId] = useState('demo_blob');
+  const [stallFromRole, setStallFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
+  const [stallToRole, setStallToRole] = useState<'provider' | 'provider2' | 'provider3'>('provider3');
+  const [supplierFeeSats, setSupplierFeeSats] = useState(5);
+  const [stallFeeSats, setStallFeeSats] = useState(1);
 
 
   async function refreshState() {
@@ -75,7 +88,7 @@ export function App() {
       void run('auto challenge', async () => {
         await createChallenge({
           blobId: challengeBlobId,
-          payoutSchedule: [1, 0, 0],
+          payoutSchedule: [15, 12, 9],
           reliabilityBonusMsats: 1000,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
@@ -101,22 +114,12 @@ export function App() {
     }
   }
 
-  async function respondAllOpenChallenges() {
-    await run('sp1+sp2 respond all', async () => {
-      const state = await fetchRuntimeState();
-      const open = state.challenges.filter((c) => c.status === 'open');
-      for (const ch of open) {
-        await respondToChallenge(ch.challenge.payload.challengeId, 'provider');
-        await respondToChallenge(ch.challenge.payload.challengeId, 'provider2');
-      }
-    });
-  }
-
   const owner = snapshot.identities.find((identity) => identity.role === 'owner');
 
   const openChallenges = useMemo(() => snapshot.challenges.filter((c) => c.status === 'open'), [snapshot.challenges]);
   const provider = snapshot.identities.find((identity) => identity.role === 'provider');
   const provider2 = snapshot.identities.find((identity) => identity.role === 'provider2');
+  const provider3 = snapshot.identities.find((identity) => identity.role === 'provider3');
 
   const challengesByBlob = useMemo(() => {
     const out = new Map<string, { lastChecked: number | null; responders: Set<string> }>();
@@ -149,13 +152,17 @@ export function App() {
       .slice(0, 6);
   }, [snapshot.challenges]);
 
+  const latestRound = recentSettlements[0] ?? null;
+
   const spRows = useMemo(() => {
     const providerNpub = provider?.npub ?? 'unknown-provider';
     const provider2Npub = provider2?.npub ?? 'unknown-provider2';
-    const files = snapshot.blobs.map((b) => b.contentRef);
+    const provider3Npub = provider3?.npub ?? 'unknown-provider3';
 
-    const sp1Files = files.filter((_, i) => i % 2 === 0);
-    const sp2Files = files.filter((_, i) => i % 2 === 1);
+    const filesForRole = (role: 'provider' | 'provider2' | 'provider3') =>
+      snapshot.replicaRegistry
+        .filter((entry) => Boolean(entry.rootsByProvider[role]))
+        .map((entry) => entry.cid);
 
     return [
       {
@@ -163,7 +170,7 @@ export function App() {
         role: 'provider' as const,
         label: 'Storage Provider #1',
         npub: providerNpub,
-        files: sp1Files,
+        files: filesForRole('provider'),
         lastPaid: providerLastPaid.get(providerNpub) ?? null,
       },
       {
@@ -171,19 +178,38 @@ export function App() {
         role: 'provider2' as const,
         label: 'Storage Provider #2',
         npub: provider2Npub,
-        files: sp2Files,
+        files: filesForRole('provider2'),
         lastPaid: providerLastPaid.get(provider2Npub) ?? null,
       },
+      {
+        id: 'sp3',
+        role: 'provider3' as const,
+        label: 'Storage Provider #3',
+        npub: provider3Npub,
+        files: filesForRole('provider3'),
+        lastPaid: providerLastPaid.get(provider3Npub) ?? null,
+      },
     ];
-  }, [snapshot.blobs, provider?.npub, provider2?.npub, providerLastPaid]);
+  }, [snapshot.replicaRegistry, provider?.npub, provider2?.npub, provider3?.npub, providerLastPaid]);
 
   return (
     <div className="page-shell">
       <section className="hero">
         <div>
           <p className="eyebrow">Flower Market Demo Control</p>
-          <h1>Challenger + 2x SP windows</h1>
-          <p className="lede">Open this app in 3 windows with query params: <code>?view=challenger</code>, <code>?view=sp1</code>, <code>?view=sp2</code>.</p>
+          <h1>Challenger + 3x SP windows</h1>
+          <p className="lede">Open this app in 4 windows with query params: <code>?view=challenger</code>, <code>?view=sp1</code>, <code>?view=sp2</code>, <code>?view=sp3</code>.</p>
+          <p>
+            Quick links:
+            {' '}
+            <a href="/?view=challenger" target="_blank" rel="noreferrer">Challenger</a>
+            {' • '}
+            <a href="/?view=sp1" target="_blank" rel="noreferrer">SP1</a>
+            {' • '}
+            <a href="/?view=sp2" target="_blank" rel="noreferrer">SP2</a>
+            {' • '}
+            <a href="/?view=sp3" target="_blank" rel="noreferrer">SP3</a>
+          </p>
         </div>
         <div className="hero-card">
           <div className="stat"><span>Runtime</span><strong>{snapshot.relayMode}</strong></div>
@@ -195,7 +221,7 @@ export function App() {
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>Window Mode</h2>
         <div className="dual">
-          {(['all', 'challenger', 'sp1', 'sp2'] as DemoView[]).map((v) => (
+          {(['all', 'challenger', 'sp1', 'sp2', 'sp3'] as DemoView[]).map((v) => (
             <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>{v}</button>
           ))}
         </div>
@@ -239,9 +265,6 @@ export function App() {
             >
               Seed Blob
             </button>
-            <button onClick={() => void respondAllOpenChallenges()} disabled={openChallenges.length === 0}>
-              SP1+SP2 Respond All Open
-            </button>
           </div>
 
           <label>Blob for recurring challenge</label>
@@ -256,7 +279,7 @@ export function App() {
             <button
               onClick={() => void run('manual challenge', () => createChallenge({
                 blobId: challengeBlobId,
-                payoutSchedule: [1, 0, 0],
+                payoutSchedule: [15, 12, 9],
                 reliabilityBonusMsats: 1000,
                 commitLeadSeconds: 20,
                 revealLeadSeconds: 40,
@@ -270,6 +293,113 @@ export function App() {
             </button>
           </div>
 
+          <h3 style={{ marginTop: 16 }}>One-click scenarios</h3>
+          <div className="dual">
+            <button
+              onClick={() => void run('scenario: seed + replicate to SP3', async () => {
+                await uploadBlob(seedBlobId, seedBlobContent);
+                await requestStallTransfer({
+                  blobId: seedBlobId,
+                  fromRole: 'provider',
+                  toRole: 'provider3',
+                  supplierFeeSats: 5,
+                  stallFeeSats: 1,
+                });
+                setChallengeBlobId(seedBlobId);
+                setStallBlobId(seedBlobId);
+              })}
+            >
+              Scenario A: Seed + Replicate SP1→SP3
+            </button>
+            <button
+              onClick={() => void run('scenario: run 3 rounds', async () => {
+                for (let i = 0; i < 3; i += 1) {
+                  await createChallenge({
+                    blobId: challengeBlobId || seedBlobId,
+                    payoutSchedule: [15, 12, 9],
+                    reliabilityBonusMsats: 1000,
+                    commitLeadSeconds: 20,
+                    revealLeadSeconds: 40,
+                  });
+                }
+              })}
+              disabled={!(challengeBlobId || seedBlobId)}
+            >
+              Scenario B: Run 3 Challenge Rounds
+            </button>
+          </div>
+
+          <h3 style={{ marginTop: 16 }}>Inter-SP Data Market (Market Stall)</h3>
+          <label>Blob</label>
+          <select value={stallBlobId} onChange={(event) => setStallBlobId(event.target.value)}>
+            <option value="">Select blob</option>
+            {snapshot.blobs.map((blob) => (
+              <option key={blob.blobId} value={blob.blobId}>{blob.blobId}</option>
+            ))}
+          </select>
+          <div className="dual" style={{ marginTop: 8 }}>
+            <div>
+              <label>From SP</label>
+              <select value={stallFromRole} onChange={(event) => setStallFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
+                <option value="provider">SP1</option>
+                <option value="provider2">SP2</option>
+                <option value="provider3">SP3</option>
+              </select>
+            </div>
+            <div>
+              <label>To SP</label>
+              <select value={stallToRole} onChange={(event) => setStallToRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
+                <option value="provider">SP1</option>
+                <option value="provider2">SP2</option>
+                <option value="provider3">SP3</option>
+              </select>
+            </div>
+          </div>
+          <div className="dual" style={{ marginTop: 8 }}>
+            <div>
+              <label>Supplier fee (sats)</label>
+              <input type="number" value={supplierFeeSats} min={0} onChange={(event) => setSupplierFeeSats(Number(event.target.value))} />
+            </div>
+            <div>
+              <label>Stall fee (sats)</label>
+              <input type="number" value={stallFeeSats} min={0} onChange={(event) => setStallFeeSats(Number(event.target.value))} />
+            </div>
+          </div>
+          <button
+            style={{ marginTop: 8 }}
+            onClick={() => void run('stall transfer', () => requestStallTransfer({
+              blobId: stallBlobId,
+              fromRole: stallFromRole,
+              toRole: stallToRole,
+              supplierFeeSats,
+              stallFeeSats,
+            }))}
+            disabled={!stallBlobId || stallFromRole === stallToRole}
+          >
+            Request Transfer via Stall
+          </button>
+
+          <h3 style={{ marginTop: 16 }}>Replica Registry (CID → SP roots)</h3>
+          {snapshot.replicaRegistry.length === 0 ? <p className="muted">No replica roots yet.</p> : snapshot.replicaRegistry.map((entry) => (
+            <div key={entry.cid} className="result-card">
+              <div className="sub-row"><span>CID</span><code>{entry.cid}</code></div>
+              {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
+                <div key={`${entry.cid}-${sp}`} className="sub-row"><span>{sp}</span><code>{root.slice(0, 24)}…</code></div>
+              ))}
+            </div>
+          ))}
+
+          <h3 style={{ marginTop: 16 }}>Market Stall Transfer Receipts</h3>
+          {snapshot.stallTransfers.length === 0 ? <p className="muted">No inter-SP transfers yet.</p> : snapshot.stallTransfers.slice(0, 8).map((receipt) => (
+            <div key={receipt.transferId} className="result-card">
+              <div className="result-head"><strong>{receipt.transferId}</strong><span className="badge">{receipt.fromRole} → {receipt.toRole}</span></div>
+              <div className="sub-row"><span>CID</span><code>{receipt.cid}</code></div>
+              <div className="sub-row"><span>Supplier fee</span><span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span></div>
+              <div className="sub-row"><span>Stall fee</span><span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span></div>
+              <div className="sub-row"><span>Time</span><span>{fmtTs(receipt.createdAt)}</span></div>
+            </div>
+          ))}
+
           <h3 style={{ marginTop: 16 }}>Tracked Files / Replication Health</h3>
           {Array.from(challengesByBlob.entries()).map(([blob, data]) => (
             <div key={blob} className="list-row">
@@ -281,7 +411,46 @@ export function App() {
             </div>
           ))}
 
-          <h3 style={{ marginTop: 16 }}>Recent Settlements + Ecash Receipts</h3>
+          <h3 style={{ marginTop: 16 }}>Round Timeline</h3>
+          {snapshot.challenges.slice().sort((a, b) => b.challenge.createdAt - a.challenge.createdAt).slice(0, 8).map((entry) => (
+            <div key={`${entry.challenge.id}-timeline`} className="result-card">
+              <div className="result-head">
+                <strong>{entry.challenge.payload.challengeId}</strong>
+                <span className="badge">leaf #{entry.challenge.payload.leafIndex}</span>
+              </div>
+              <div className="sub-row"><span>Challenge posted</span><span>{fmtTs(entry.challenge.createdAt)}</span></div>
+              <div className="sub-row"><span>Commits</span><span>{entry.commits.length}</span></div>
+              <div className="sub-row"><span>Reveals</span><span>{entry.reveals.length}</span></div>
+              <div className="sub-row"><span>Settlement</span><span>{entry.settlement ? fmtTs(entry.settlement.createdAt) : 'pending'}</span></div>
+            </div>
+          ))}
+
+          <h3 style={{ marginTop: 16 }}>Live Ranking (latest settled round)</h3>
+          {!latestRound?.settlement ? (
+            <p className="muted">No settled rounds yet.</p>
+          ) : (
+            <div className="result-card">
+              <div className="result-head">
+                <strong>{latestRound.challenge.payload.challengeId}</strong>
+                <span className="badge">latest</span>
+              </div>
+              {(latestRound.settlement.payload.winners ?? []).map((winner) => {
+                const receipt = (latestRound.settlement?.payload.payoutReceipts ?? []).find((r) => r.responder === winner.responder);
+                return (
+                  <div key={`${latestRound.challenge.id}-${winner.responder}`} className="sub-row">
+                    <span>#{winner.rank} {winner.responder.slice(0, 12)}…</span>
+                    <span>{winner.baseSats} sats (+{winner.bonusMsats} msat bonus)</span>
+                    <span>{receipt ? `${Math.round(receipt.amountMsats / 1000)} sats paid` : 'pending payout'}</span>
+                  </div>
+                );
+              })}
+              {(latestRound.settlement.payload.excluded ?? []).length > 0 && (
+                <p className="muted">Excluded: {(latestRound.settlement.payload.excluded ?? []).join(', ')}</p>
+              )}
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 16 }}>Recent Settlements + Payout Receipts</h3>
           {recentSettlements.length === 0 ? (
             <p className="muted">No settlements yet.</p>
           ) : (
@@ -330,7 +499,7 @@ export function App() {
         </section>
       )}
 
-      {(view === 'all' || view === 'sp1' || view === 'sp2') && (
+      {(view === 'all' || view === 'sp1' || view === 'sp2' || view === 'sp3') && (
         <section className="workspace-grid">
           {spRows
             .filter((sp) => view === 'all' || view === sp.id)

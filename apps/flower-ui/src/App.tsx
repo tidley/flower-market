@@ -284,20 +284,6 @@ export function App() {
             </a>
           </p>
 
-          <h3>Lightning Balances (NWC)</h3>
-          {snapshot.balances
-            .filter((b) => b.role !== 'settler')
-            .map((b) => (
-              <div key={b.role} className="sub-row">
-                <span>{b.role}</span>
-                <span>{Math.round(b.balanceMsats / 1000)} sats</span>
-                <span className="muted">
-                  funded {Math.round(b.fundedMsats / 1000)} / in{' '}
-                  {Math.round(b.incomingMsats / 1000)} / out {Math.round(b.outgoingMsats / 1000)}
-                </span>
-              </div>
-            ))}
-
           <h3>Quick Seed Blob</h3>
           <label>Seed Blob Id</label>
           <input value={seedBlobId} onChange={(event) => setSeedBlobId(event.target.value)} />

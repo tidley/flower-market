@@ -404,14 +404,14 @@ export function App() {
       {(view === 'all' || view === 'challenger') && (
         <section className="panel" style={{ marginBottom: 16 }}>
           <h2>Challenger UI</h2>
-          <p>Challenge feed can be viewed at Jumble for owner npub:</p>
+          <p>Challenge feed can be viewed via Alphaama for owner pubkey:</p>
           <p>
             <a
-              href={`https://jumble.social/users/${encodeURIComponent(owner?.npub ?? '')}`}
+              href={`https://alphaama.com/profile/${encodeURIComponent(owner?.pubkey ?? '')}`}
               target="_blank"
               rel="noreferrer"
             >
-              Open owner feed in jumble.social
+              Open owner activity in alphaama.com
             </a>
           </p>
 

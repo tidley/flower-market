@@ -139,6 +139,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     provider2NwcUri: process.env.FLOWER_SP2_NWC,
     provider3NwcUri: process.env.FLOWER_SP3_NWC,
     stallNwcUri: process.env.FLOWER_STALL_NWC,
+    nwcBalancePolling: process.env.FLOWER_NWC_BALANCE_POLL !== 'false',
   });
 
   console.log(

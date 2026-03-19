@@ -45,6 +45,7 @@ export interface FlowerDaemonConfig {
   provider2NwcUri?: string;
   provider3NwcUri?: string;
   stallNwcUri?: string;
+  nwcBalancePolling?: boolean;
 }
 
 type PublishedMessage = {
@@ -92,6 +93,7 @@ export class FlowerDaemon {
   private lastNwcBalancePollAt = 0;
   private readonly nwcBalancePollIntervalMs = 30_000;
   private lastLogAtByKey = new Map<string, number>();
+  private nwcBalancePolling = true;
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -127,6 +129,7 @@ export class FlowerDaemon {
     }
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
+    this.nwcBalancePolling = config.nwcBalancePolling ?? true;
     this.inventoryByRole.set('provider', new Set());
     this.inventoryByRole.set('provider2', new Set());
     this.inventoryByRole.set('provider3', new Set());
@@ -533,11 +536,20 @@ export class FlowerDaemon {
         continue;
       }
 
-      const blob = await fetchBlossomObject(
-        this.blossomBaseUrl,
-        this.resolveBlobIdFromContentRef(challengeView.challenge.payload.contentRef),
-      );
-      await settlePublishedChallenge(this.transport, this.settler, challengeView.challenge, blob, undefined, undefined, this.payoutAdapter);
+      try {
+        const blob = await fetchBlossomObject(
+          this.blossomBaseUrl,
+          this.resolveBlobIdFromContentRef(challengeView.challenge.payload.contentRef),
+        );
+        await settlePublishedChallenge(this.transport, this.settler, challengeView.challenge, blob, undefined, undefined, this.payoutAdapter);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('Failed to fetch Blossom blob') || message.includes('Unknown contentRef for Blossom lookup')) {
+          this.logRateLimited(`missing-blob:${challengeView.challenge.payload.challengeId}`, 'Skipping challenge settlement; blob unavailable locally', message);
+          continue;
+        }
+        throw error;
+      }
     }
   }
 
@@ -624,6 +636,7 @@ export class FlowerDaemon {
   }
 
   private maybeRefreshNwcBalances(): void {
+    if (!this.nwcBalancePolling) return;
     if (!(this.payoutAdapter instanceof NwcPayoutAdapter)) return;
     if (this.nwcBalancePollInFlight) return;
     const now = Date.now();

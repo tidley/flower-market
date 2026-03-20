@@ -31,6 +31,28 @@ function fmtTs(ts: number | null): string {
   return new Date(ts * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
 }
 
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes || bytes < 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let unit = units[0];
+  for (let i = 1; i < units.length && value >= 1024; i += 1) {
+    value /= 1024;
+    unit = units[i];
+  }
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`;
+}
+
+function estimateContentBytes(content: string, encoding?: 'utf8' | 'base64'): number {
+  if (encoding === 'base64') {
+    const clean = content.replace(/\s+/g, '');
+    const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+  }
+  return new TextEncoder().encode(content).length;
+}
+
 function roleLabel(role: 'provider' | 'provider2' | 'provider3'): string {
   if (role === 'provider') return 'SP1';
   if (role === 'provider2') return 'SP2';
@@ -237,6 +259,16 @@ export function App() {
     snapshot.blobs.forEach((blob) => {
       if (!map.has(blob.contentRef)) {
         map.set(blob.contentRef, blob.blobId);
+      }
+    });
+    return map;
+  }, [snapshot.blobs]);
+
+  const blobSizeByContentRef = useMemo(() => {
+    const map = new Map<string, number>();
+    snapshot.blobs.forEach((blob) => {
+      if (!map.has(blob.contentRef)) {
+        map.set(blob.contentRef, estimateContentBytes(blob.content, blob.encoding));
       }
     });
     return map;
@@ -581,6 +613,7 @@ export function App() {
             <div className="result-card">
               <div className="sub-row"><span>Blob</span><span>{retrievedBlob.blobId}</span></div>
               <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.cid, 14)}</code></div>
+              <div className="sub-row"><span>Size</span><span>{formatBytes(estimateContentBytes(retrievedBlob.deliveredCiphertext, retrievedBlob.encoding))}</span></div>
               <div className="sub-row"><span>From</span><span>{roleName(retrievedBlob.fromRole)} ({shortId(retrievedBlob.providerNpub, 10)})</span></div>
               <div className="sub-row"><span>Encoding</span><span>{retrievedBlob.encoding ?? 'utf8'}</span></div>
               {retrievedBlob.fileName && <div className="sub-row"><span>File</span><span>{retrievedBlob.fileName}</span></div>}
@@ -752,7 +785,7 @@ export function App() {
                 <div key={entry.cid} className="result-card compact-card">
                   <div className="result-head">
                     <strong>{blobNameByContentRef.get(entry.cid) ?? 'Unknown blob'}</strong>
-                    <code>{shortId(entry.cid, 14)}</code>
+                    <code>{shortId(entry.cid, 14)} · {formatBytes(blobSizeByContentRef.get(entry.cid))}</code>
                   </div>
                   {Object.entries(entry.rootsByProvider).map(([sp, root]) => (
                     <div key={`${entry.cid}-${sp}`} className="sub-row">
@@ -1102,6 +1135,10 @@ export function App() {
                   <div className="sub-row">
                     <span>CID</span>
                     <code>{shortId(entry.cid, 14)}</code>
+                  </div>
+                  <div className="sub-row">
+                    <span>Size</span>
+                    <span>{formatBytes(blobSizeByContentRef.get(entry.cid))}</span>
                   </div>
                   <div className="sub-row">
                     <span>SP1</span>

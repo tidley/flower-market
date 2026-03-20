@@ -17,9 +17,9 @@ describe('flower-runtime', () => {
   it('serves deterministic dummy blossom fixtures', async () => {
     const server = new DummyBlossomServer([createBlossomFixture('blob_a', 'hello blossom')]);
     servers.push(server);
-    const port = await server.start();
+    await server.start();
 
-    const object = await fetchBlossomObject(`http://127.0.0.1:${port}`, 'blob_a');
+    const object = await fetchBlossomObject(server.getBaseUrl(), 'blob_a');
 
     expect(object.contentRef.startsWith('cid:')).toBe(true);
     expect(object.leafHash).toBe(object.merkleRoot);
@@ -29,12 +29,12 @@ describe('flower-runtime', () => {
   it('runs an autonomous challenge round and publishes settlement output', async () => {
     const server = new DummyBlossomServer([createBlossomFixture('blob_demo', 'round payload')]);
     servers.push(server);
-    const port = await server.start();
+    await server.start();
     const transport = new MemoryRelayTransport();
 
     const result = await runAutonomousRound(
       transport,
-      `http://127.0.0.1:${port}`,
+      server.getBaseUrl(),
       {
         owner: createRuntimeSigner(),
         responder: createRuntimeSigner(),
@@ -61,7 +61,7 @@ describe('flower-runtime', () => {
   it('does not fail settlement when payout adapter cannot map a winner', async () => {
     const server = new DummyBlossomServer([createBlossomFixture('blob_unmapped', 'round payload')]);
     servers.push(server);
-    const port = await server.start();
+    await server.start();
     const transport = new MemoryRelayTransport();
 
     const owner = createRuntimeSigner();
@@ -70,7 +70,7 @@ describe('flower-runtime', () => {
 
     const result = await runAutonomousRound(
       transport,
-      `http://127.0.0.1:${port}`,
+      server.getBaseUrl(),
       { owner, responder, settler },
       { blobId: 'blob_unmapped', challengeId: 'ch_unmapped' },
     );

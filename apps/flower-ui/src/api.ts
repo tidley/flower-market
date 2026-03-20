@@ -1,4 +1,4 @@
-import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
+import type { RetrievedBlobView, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
 
 export type PublishedMessage = {
   id: string;
@@ -43,7 +43,7 @@ export function retrieveBlob(blobId: string, fromRole: 'provider' | 'provider2' 
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ blobId, fromRole }),
-  });
+  }) as Promise<RetrievedBlobView>;
 }
 
 export function addFunding(role: 'owner' | 'provider' | 'provider2' | 'provider3' | 'settler', sats: number) {

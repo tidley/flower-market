@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { decryptBlobEnvelope } from './envelope.ts';
 import { FlowerDaemon } from './daemon.ts';
 
 describe('FlowerDaemon', () => {
@@ -69,7 +70,7 @@ describe('FlowerDaemon', () => {
     expect(view?.reveals ?? []).toHaveLength(0);
   });
 
-  it('retrieves seeded binary-style blobs with file metadata', async () => {
+  it('retrieves seeded binary-style blobs with file metadata through provider and DO unwraps', async () => {
     const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
     daemons.push(daemon);
     await daemon.start();
@@ -90,10 +91,53 @@ describe('FlowerDaemon', () => {
     });
 
     const retrieved = await daemon.retrieveBlobViaProvider({ blobId: 'song_blob', fromRole: 'provider3' });
+    expect(retrieved.plaintextPayload).toBe(payloadB64);
+    expect(retrieved.deliveredCiphertext).toBe(payloadB64);
+    expect(retrieved.envelope.wrapsByProvider.provider3?.sourceRole).toBe('provider');
+    expect(retrieved.transportNote).toContain('DO unwrap');
     expect(retrieved.encoding).toBe('base64');
     expect(retrieved.mimeType).toBe('audio/mpeg');
     expect(retrieved.fileName).toBe('demo.mp3');
     expect(Buffer.from(retrieved.deliveredCiphertext, 'base64').toString('utf8')).toBe('fake mp3 bytes');
+  });
+
+  it('rejects a wrong-role unwrap attempt against a seeded envelope', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    daemon.seedBlob('wrong_role_blob', 'wrong role payload');
+    const blob = daemon.listBlobs().find((entry) => entry.blobId === 'wrong_role_blob');
+    expect(blob?.envelope).toBeTruthy();
+
+    expect(() => {
+      if (!blob?.envelope) throw new Error('missing envelope');
+      return decryptBlobEnvelope(blob.envelope, 'provider', daemon.provider2, daemon.owner);
+    }).toThrow(/failed to unwrap provider ciphertext/);
+  });
+
+  it('rewraps from SP1 to SP3 and retrieves the original payload from SP3', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    const original = 'stall transfer payload';
+    daemon.seedBlob('transfer_blob', original);
+
+    const receipt = await daemon.requestTransferViaStall({
+      blobId: 'transfer_blob',
+      fromRole: 'provider',
+      toRole: 'provider3',
+      supplierFeeSats: 1,
+      stallFeeSats: 1,
+    });
+    expect(receipt.fromRole).toBe('provider');
+    expect(receipt.toRole).toBe('provider3');
+
+    const retrieved = await daemon.retrieveBlobViaProvider({ blobId: 'transfer_blob', fromRole: 'provider3' });
+    expect(retrieved.deliveredCiphertext).toBe(original);
+    expect(retrieved.plaintextPayload).toBe(original);
+    expect(retrieved.envelope.wrapsByProvider.provider3?.sourceRole).toBe('provider');
   });
 
   it('tracks replica coverage after randomized stall transfers across several blobs', async () => {
@@ -158,6 +202,7 @@ describe('FlowerDaemon', () => {
         const retrieval = await daemon.retrieveBlobViaProvider({ blobId: blob.blobId, fromRole: role });
         expect(retrieval.blobId).toBe(blob.blobId);
         expect(retrieval.cid).toBe(blob.contentRef);
+        expect(retrieval.deliveredCiphertext).toBe(blob.content);
       }
     }
   });

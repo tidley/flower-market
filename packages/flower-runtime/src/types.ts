@@ -184,6 +184,27 @@ export interface BlossomFixture {
     leafHash: string;
     proof: MerkleProofNode[];
   }>;
+  envelope?: BlobEnvelope;
+}
+
+export type ProviderRole = 'provider' | 'provider2' | 'provider3';
+export type ProviderWrapSourceRole = 'owner' | ProviderRole;
+
+export interface ProviderWrap {
+  version: 1;
+  role: ProviderRole;
+  sourceRole: ProviderWrapSourceRole;
+  wrappedDoCiphertext: string;
+  wrapKeyFingerprint: string;
+}
+
+export interface BlobEnvelope {
+  version: 1;
+  algorithm: 'flower-do-envelope-v1';
+  contentRef: string;
+  doCiphertext: string;
+  doKeyFingerprint: string;
+  wrapsByProvider: Partial<Record<ProviderRole, ProviderWrap>>;
 }
 
 export interface RetrievedBlossomObject extends BlossomFixture {
@@ -248,12 +269,26 @@ export interface ReplicaRegistryEntry {
   rootsByProvider: Record<string, string>;
 }
 
+export interface RetrievedBlobView {
+  blobId: string;
+  cid: string;
+  fromRole: ProviderRole;
+  providerNpub: string;
+  plaintextPayload: string;
+  deliveredCiphertext: string;
+  encoding?: 'utf8' | 'base64';
+  mimeType?: string;
+  fileName?: string;
+  transportNote: string;
+  envelope: BlobEnvelope;
+}
+
 export interface StallTransferReceipt {
   transferId: string;
   cid: string;
   blobId: string;
-  fromRole: 'provider' | 'provider2' | 'provider3';
-  toRole: 'provider' | 'provider2' | 'provider3';
+  fromRole: ProviderRole;
+  toRole: ProviderRole;
   supplierFeeMsats: number;
   stallFeeMsats: number;
   requester: string;

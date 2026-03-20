@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
-import type { RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
+import type { RetrievedBlobView, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
 import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestStallTransfer, respondToChallenge, retrieveBlob, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
@@ -103,17 +103,7 @@ export function App() {
   const [retrieveFromRole, setRetrieveFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
   const [stallFeeSats, setStallFeeSats] = useState(1);
-  const [retrievedBlob, setRetrievedBlob] = useState<{
-    blobId: string;
-    cid: string;
-    fromRole: 'provider' | 'provider2' | 'provider3';
-    providerNpub: string;
-    deliveredCiphertext: string;
-    encoding?: 'utf8' | 'base64';
-    mimeType?: string;
-    fileName?: string;
-    transportNote: string;
-  } | null>(null);
+  const [retrievedBlob, setRetrievedBlob] = useState<RetrievedBlobView | null>(null);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
 
 
@@ -210,7 +200,7 @@ export function App() {
     if (!retrievedBlob) return;
 
     if (retrievedBlob.encoding === 'base64') {
-      const binary = atob(retrievedBlob.deliveredCiphertext);
+      const binary = atob(retrievedBlob.plaintextPayload);
       const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
       const blob = new Blob([bytes], { type: retrievedBlob.mimeType || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -224,7 +214,7 @@ export function App() {
       return;
     }
 
-    const blob = new Blob([retrievedBlob.deliveredCiphertext], { type: retrievedBlob.mimeType || 'text/plain;charset=utf-8' });
+    const blob = new Blob([retrievedBlob.plaintextPayload], { type: retrievedBlob.mimeType || 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -602,17 +592,7 @@ export function App() {
               onClick={() =>
                 void run('retrieve blob', async () => {
                   if (!challengeBlobId) return;
-                  const blob = await retrieveBlob(challengeBlobId, retrieveFromRole) as {
-                    blobId: string;
-                    cid: string;
-                    fromRole: 'provider' | 'provider2' | 'provider3';
-                    providerNpub: string;
-                    deliveredCiphertext: string;
-                    encoding?: 'utf8' | 'base64';
-                    mimeType?: string;
-                    fileName?: string;
-                    transportNote: string;
-                  };
+                  const blob = await retrieveBlob(challengeBlobId, retrieveFromRole);
                   setRetrievedBlob(blob);
                 })
               }
@@ -625,12 +605,12 @@ export function App() {
             <div className="result-card">
               <div className="sub-row"><span>Blob</span><span>{retrievedBlob.blobId}</span></div>
               <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.cid, 14)}</code></div>
-              <div className="sub-row"><span>Size</span><span>{formatBytes(estimateContentBytes(retrievedBlob.deliveredCiphertext, retrievedBlob.encoding))}</span></div>
+              <div className="sub-row"><span>Size</span><span>{formatBytes(estimateContentBytes(retrievedBlob.plaintextPayload, retrievedBlob.encoding))}</span></div>
               <div className="sub-row"><span>From</span><span>{roleName(retrievedBlob.fromRole)} ({shortId(retrievedBlob.providerNpub, 10)})</span></div>
               <div className="sub-row"><span>Encoding</span><span>{retrievedBlob.encoding ?? 'utf8'}</span></div>
               {retrievedBlob.fileName && <div className="sub-row"><span>File</span><span>{retrievedBlob.fileName}</span></div>}
               {retrievedBlob.mimeType && <div className="sub-row"><span>MIME</span><span>{retrievedBlob.mimeType}</span></div>}
-              <div className="sub-row"><span>Payload</span><code className="content-wrap">{retrievedBlob.encoding === 'base64' ? `${retrievedBlob.deliveredCiphertext.slice(0, 72)}...` : retrievedBlob.deliveredCiphertext}</code></div>
+              <div className="sub-row"><span>Plaintext</span><code className="content-wrap">{retrievedBlob.encoding === 'base64' ? `${retrievedBlob.plaintextPayload.slice(0, 72)}...` : retrievedBlob.plaintextPayload}</code></div>
               <div className="sub-row"><span>Flow</span><span className="muted">{retrievedBlob.transportNote}</span></div>
               <button style={{ marginTop: 8 }} onClick={downloadRetrievedBlob}>Download Retrieved Blob</button>
             </div>
@@ -1091,11 +1071,11 @@ export function App() {
         <section className="panel" style={{ marginTop: 16 }}>
           <h2>Stall View</h2>
           <p className="muted">
-            Stall routes DO uploads/replication and re-encrypts data between SPs. Transfers below
-            show source and target SP for each CID.
+            Stall routes DO uploads/replication and re-wrap data between SPs. Each retrieval now
+            shows the SP unwrap followed by the DO unwrap before plaintext is returned.
           </p>
 
-          <h3>Re-encryption / Transfer log</h3>
+          <h3>Re-wrap / Transfer log</h3>
           {snapshot.stallTransfers.length === 0 ? (
             <p className="muted">No stall transfers yet.</p>
           ) : (

@@ -3,6 +3,7 @@ import { EcashPayoutAdapter, type PayoutAdapter } from '../../flower-payout/src/
 import { finalizeEvent, SimplePool } from 'nostr-tools';
 import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './blossom.ts';
 import { buildCommitHash, createRuntimeSigner, randomId } from './crypto.ts';
+import { buildBlobEnvelope, decryptBlobEnvelope, rewrapBlobEnvelope } from './envelope.ts';
 import { NwcPayoutAdapter } from './nwcPayout.ts';
 import { MemoryRelayTransport, NostrRelayTransport } from './relay.ts';
 import { buildChallengeViews, buildMarketplaceViews, parseRuntimeEvents } from './snapshot.ts';
@@ -17,6 +18,7 @@ import type {
   MarketTransferProofEventPayload,
   PublishedFlowerEvent,
   RelayFilter,
+  ProviderRole,
   RuntimeIdentityView,
   RuntimeSigner,
   RuntimeSnapshot,
@@ -24,6 +26,7 @@ import type {
   ReplicaRegistryEntry,
   SettlementEventPayload,
   StallTransferReceipt,
+  RetrievedBlobView,
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
 
@@ -87,9 +90,10 @@ export class FlowerDaemon {
   private fundedMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
   private marketIncomingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
   private marketOutgoingMsatsByRole = new Map<RuntimeIdentityView['role'], number>();
-  private replicaRootsByCid = new Map<string, Map<'provider' | 'provider2' | 'provider3', string>>();
+  private replicaRootsByCid = new Map<string, Map<ProviderRole, string>>();
+  private envelopeByCid = new Map<string, BlossomFixture['envelope']>();
   private cidToBlobId = new Map<string, string>();
-  private inventoryByRole = new Map<'provider' | 'provider2' | 'provider3', Set<string>>();
+  private inventoryByRole = new Map<ProviderRole, Set<string>>();
   private stallTransfers: StallTransferReceipt[] = [];
   private liveNwcBalancesByNpub: Record<string, number> = {};
   private nwcBalancePollInFlight = false;
@@ -152,8 +156,8 @@ export class FlowerDaemon {
       return;
     }
 
-    const port = await this.blossom.start(blossomPort);
-    this.blossomBaseUrl = `http://127.0.0.1:${port}`;
+    await this.blossom.start(blossomPort);
+    this.blossomBaseUrl = this.blossom.getBaseUrl();
     await this.tick();
     this.timer = setInterval(() => {
       this.tick().catch((error) => {
@@ -261,7 +265,13 @@ export class FlowerDaemon {
     content: string,
     options?: { encoding?: 'utf8' | 'base64'; mimeType?: string; fileName?: string },
   ): BlossomFixture {
-    const blob = this.blossom.seed(createBlossomFixture(blobId, content, options));
+    const blob = createBlossomFixture(blobId, content, options);
+    blob.envelope = buildBlobEnvelope(blob, this.owner, {
+      provider: this.provider,
+      provider2: this.provider2,
+    });
+    this.blossom.seed(blob);
+    this.envelopeByCid.set(blob.contentRef, blob.envelope);
     this.cidToBlobId.set(blob.contentRef, blob.blobId);
     this.registerReplica(blob.contentRef, 'provider');
     this.registerReplica(blob.contentRef, 'provider2');
@@ -441,8 +451,8 @@ export class FlowerDaemon {
 
   async requestTransferViaStall(input: {
     blobId: string;
-    fromRole: 'provider' | 'provider2' | 'provider3';
-    toRole: 'provider' | 'provider2' | 'provider3';
+    fromRole: ProviderRole;
+    toRole: ProviderRole;
     supplierFeeSats: number;
     stallFeeSats: number;
   }): Promise<StallTransferReceipt> {
@@ -456,6 +466,11 @@ export class FlowerDaemon {
       throw new Error(`${input.fromRole} does not host ${cid}`);
     }
 
+    const sourceSigner = this.signerForRole(input.fromRole);
+    const targetSigner = this.signerForRole(input.toRole);
+    const envelope = this.getEnvelopeOrThrow(blob);
+    const rewrappedEnvelope = rewrapBlobEnvelope(envelope, input.fromRole, input.toRole, sourceSigner, targetSigner, this.owner);
+    this.storeEnvelope(cid, rewrappedEnvelope);
     this.registerReplica(cid, input.toRole);
 
     const supplierFeeMsats = Math.max(0, Math.round(input.supplierFeeSats * 1000));
@@ -530,35 +545,29 @@ export class FlowerDaemon {
 
   async retrieveBlobViaProvider(input: {
     blobId: string;
-    fromRole: 'provider' | 'provider2' | 'provider3';
-  }): Promise<{
-    blobId: string;
-    cid: string;
-    fromRole: 'provider' | 'provider2' | 'provider3';
-    providerNpub: string;
-    deliveredCiphertext: string;
-    encoding?: 'utf8' | 'base64';
-    mimeType?: string;
-    fileName?: string;
-    transportNote: string;
-  }> {
+    fromRole: ProviderRole;
+  }): Promise<RetrievedBlobView> {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
     const cid = blob.contentRef;
     if (!this.inventoryByRole.get(input.fromRole)?.has(cid)) {
       throw new Error(`${input.fromRole} does not host ${cid}`);
     }
 
+    const envelope = this.getEnvelopeOrThrow(blob);
+    const decrypted = decryptBlobEnvelope(envelope, input.fromRole, this.signerForRole(input.fromRole), this.owner);
     const providerNpub = this.signerForRole(input.fromRole).npub;
     return {
       blobId: blob.blobId,
       cid,
       fromRole: input.fromRole,
       providerNpub,
-      deliveredCiphertext: blob.content,
+      plaintextPayload: decrypted.plaintextPayload,
+      deliveredCiphertext: decrypted.plaintextPayload,
       encoding: blob.encoding,
       mimeType: blob.mimeType,
       fileName: blob.fileName,
-      transportNote: 'SP decrypted its provider-wrap, recovered DO ciphertext, and delivered ciphertext payload to DO.',
+      transportNote: `SP ${input.fromRole} decrypted its provider-wrap, recovered the DO ciphertext, and then the DO unwrap recovered the plaintext payload.`,
+      envelope,
     };
   }
 
@@ -716,11 +725,47 @@ export class FlowerDaemon {
     }));
   }
 
-  private registerReplica(cid: string, role: 'provider' | 'provider2' | 'provider3'): void {
-    const roots = this.replicaRootsByCid.get(cid) ?? new Map<'provider' | 'provider2' | 'provider3', string>();
+  private registerReplica(cid: string, role: ProviderRole): void {
+    const roots = this.replicaRootsByCid.get(cid) ?? new Map<ProviderRole, string>();
     roots.set(role, hashLeaf(`${cid}:${role}`));
     this.replicaRootsByCid.set(cid, roots);
     this.inventoryByRole.get(role)?.add(cid);
+  }
+
+  private getEnvelopeOrThrow(blob: BlossomFixture) {
+    const storedEnvelope = this.envelopeByCid.get(blob.contentRef);
+    if (storedEnvelope) {
+      blob.envelope = storedEnvelope ?? undefined;
+      return storedEnvelope;
+    }
+
+    if (blob.envelope) {
+      this.envelopeByCid.set(blob.contentRef, blob.envelope);
+      return blob.envelope;
+    }
+
+    const envelope = buildBlobEnvelope(blob, this.owner, {
+      provider: this.provider,
+      provider2: this.provider2,
+    });
+    blob.envelope = envelope;
+    this.envelopeByCid.set(blob.contentRef, envelope);
+    this.syncEnvelopeAcrossBlobs(blob.contentRef, envelope);
+
+    return envelope;
+  }
+
+  private storeEnvelope(cid: string, envelope: NonNullable<BlossomFixture['envelope']>): void {
+    this.envelopeByCid.set(cid, envelope);
+    this.syncEnvelopeAcrossBlobs(cid, envelope);
+  }
+
+  private syncEnvelopeAcrossBlobs(cid: string, envelope: NonNullable<BlossomFixture['envelope']>): void {
+    for (const fixture of this.blossom.list()) {
+      if (fixture.contentRef === cid) {
+        fixture.envelope = envelope;
+      }
+    }
   }
 
   private resolveBlobIdFromContentRef(contentRef: string): string {
@@ -740,7 +785,7 @@ export class FlowerDaemon {
     throw new Error(`Unknown contentRef for Blossom lookup: ${contentRef}`);
   }
 
-  private signerForRole(role: 'provider' | 'provider2' | 'provider3'): RuntimeSigner {
+  private signerForRole(role: ProviderRole): RuntimeSigner {
     if (role === 'provider2') return this.provider2;
     if (role === 'provider3') return this.provider3;
     return this.provider;
@@ -866,4 +911,3 @@ export class FlowerDaemon {
     ];
   }
 }
-

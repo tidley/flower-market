@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, get, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 
 import { hashLeaf, hashPair } from '../../flower-contextvm/src/index.ts';
 import type { MerkleProofNode } from '../../flower-contextvm/src/proof.ts';
 import type { BlossomFixture, RetrievedBlossomObject } from './types.ts';
+
+const memoryServers = new Map<string, DummyBlossomServer>();
 
 function json(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' });
@@ -89,6 +92,8 @@ export class DummyBlossomServer {
   private server: Server;
   private started = false;
   private sockets = new Set<Socket>();
+  private memoryBaseUrl: string | null = null;
+  private port = 0;
 
   constructor(initialFixtures: BlossomFixture[] = []) {
     this.server = createServer(this.handleRequest);
@@ -114,6 +119,8 @@ export class DummyBlossomServer {
   }
 
   async start(port = 0): Promise<number> {
+    this.port = port;
+
     return new Promise((resolve, reject) => {
       this.server.once('error', reject);
       this.server.listen(port, '127.0.0.1', () => {
@@ -124,13 +131,32 @@ export class DummyBlossomServer {
           return;
         }
         this.started = true;
+        this.port = address.port;
+        this.memoryBaseUrl = null;
         resolve(address.port);
       });
+    }).catch((error) => {
+      const code = typeof error === 'object' && error && 'code' in error ? (error as { code?: string }).code : undefined;
+      if (code !== 'EPERM' && code !== 'EACCES') {
+        throw error;
+      }
+
+      this.started = true;
+      this.memoryBaseUrl = `memory://blossom-${randomUUID()}`;
+      memoryServers.set(this.memoryBaseUrl, this);
+      return 0;
     });
   }
 
   async stop(): Promise<void> {
     if (!this.started) {
+      return;
+    }
+
+    if (this.memoryBaseUrl) {
+      memoryServers.delete(this.memoryBaseUrl);
+      this.memoryBaseUrl = null;
+      this.started = false;
       return;
     }
 
@@ -147,6 +173,10 @@ export class DummyBlossomServer {
         resolve();
       });
     });
+  }
+
+  getBaseUrl(): string {
+    return this.memoryBaseUrl ?? `http://127.0.0.1:${this.port}`;
   }
 
   private handleRequest = (request: IncomingMessage, response: ServerResponse) => {
@@ -178,6 +208,21 @@ export class DummyBlossomServer {
 }
 
 export async function fetchBlossomObject(baseUrl: string, blobId: string): Promise<RetrievedBlossomObject> {
+  if (baseUrl.startsWith('memory://')) {
+    const server = memoryServers.get(baseUrl);
+    if (!server) {
+      throw new Error(`Failed to fetch Blossom blob ${blobId}: unknown memory server`);
+    }
+    const fixture = server.list().find((entry) => entry.blobId === blobId);
+    if (!fixture) {
+      throw new Error(`Failed to fetch Blossom blob ${blobId}: 404`);
+    }
+    return {
+      ...fixture,
+      sourceUrl: `${baseUrl}/blob/${encodeURIComponent(blobId)}`,
+    };
+  }
+
   const url = `${baseUrl.replace(/\/$/, '')}/blob/${encodeURIComponent(blobId)}`;
   const fixture = await new Promise<BlossomFixture>((resolve, reject) => {
     get(url, (response) => {

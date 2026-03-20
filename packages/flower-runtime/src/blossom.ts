@@ -59,7 +59,11 @@ function buildLeafProofs(leafHashes: string[]): { root: string; proofs: Array<{ 
   return { root: level[0].hash, proofs };
 }
 
-export function createBlossomFixture(blobId: string, content: string): BlossomFixture {
+export function createBlossomFixture(
+  blobId: string,
+  content: string,
+  options?: { encoding?: 'utf8' | 'base64'; mimeType?: string; fileName?: string },
+): BlossomFixture {
   const leafChunks = chunkContent(content);
   const leafHashes = leafChunks.map((chunk) => hashLeaf(chunk));
   const { root, proofs } = buildLeafProofs(leafHashes);
@@ -73,6 +77,9 @@ export function createBlossomFixture(blobId: string, content: string): BlossomFi
     merkleRoot: root,
     sampleLeafHash: sample.leafHash,
     sampleProof: sample.proof,
+    encoding: options?.encoding ?? 'utf8',
+    mimeType: options?.mimeType,
+    fileName: options?.fileName,
     leafProofs: proofs,
   };
 }

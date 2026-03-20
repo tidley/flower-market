@@ -69,6 +69,33 @@ describe('FlowerDaemon', () => {
     expect(view?.reveals ?? []).toHaveLength(0);
   });
 
+  it('retrieves seeded binary-style blobs with file metadata', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    const payloadB64 = Buffer.from('fake mp3 bytes').toString('base64');
+    daemon.seedBlob('song_blob', payloadB64, {
+      encoding: 'base64',
+      mimeType: 'audio/mpeg',
+      fileName: 'demo.mp3',
+    });
+
+    await daemon.requestTransferViaStall({
+      blobId: 'song_blob',
+      fromRole: 'provider',
+      toRole: 'provider3',
+      supplierFeeSats: 1,
+      stallFeeSats: 1,
+    });
+
+    const retrieved = await daemon.retrieveBlobViaProvider({ blobId: 'song_blob', fromRole: 'provider3' });
+    expect(retrieved.encoding).toBe('base64');
+    expect(retrieved.mimeType).toBe('audio/mpeg');
+    expect(retrieved.fileName).toBe('demo.mp3');
+    expect(Buffer.from(retrieved.deliveredCiphertext, 'base64').toString('utf8')).toBe('fake mp3 bytes');
+  });
+
   it('tracks replica coverage after randomized stall transfers across several blobs', async () => {
     const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
     daemons.push(daemon);

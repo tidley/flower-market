@@ -26,11 +26,15 @@ export function fetchPublishedMessages(): Promise<PublishedMessage[]> {
   return request<PublishedMessage[]>('/api/messages');
 }
 
-export function uploadBlob(blobId: string, content: string) {
+export function uploadBlob(
+  blobId: string,
+  content: string,
+  options?: { encoding?: 'utf8' | 'base64'; mimeType?: string; fileName?: string },
+) {
   return request('/api/blobs', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ blobId, content }),
+    body: JSON.stringify({ blobId, content, ...options }),
   });
 }
 

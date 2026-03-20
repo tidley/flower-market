@@ -69,6 +69,11 @@ export function App() {
   const [challengeBlobId, setChallengeBlobId] = useState('');
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
+  const [seedFile, setSeedFile] = useState<{
+    name: string;
+    mimeType: string;
+    base64: string;
+  } | null>(null);
   const [publishedEvents, setPublishedEvents] = useState<PublishedMessage[]>([]);
   const [stallBlobId, setStallBlobId] = useState('demo_blob');
   const [stallFromRole, setStallFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
@@ -82,6 +87,9 @@ export function App() {
     fromRole: 'provider' | 'provider2' | 'provider3';
     providerNpub: string;
     deliveredCiphertext: string;
+    encoding?: 'utf8' | 'base64';
+    mimeType?: string;
+    fileName?: string;
     transportNote: string;
   } | null>(null);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
@@ -151,6 +159,58 @@ export function App() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function onSeedFileSelected(file: File | null) {
+    if (!file) {
+      setSeedFile(null);
+      return;
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+
+    const idx = dataUrl.indexOf(',');
+    if (idx < 0) throw new Error('Failed to parse selected file payload');
+
+    setSeedFile({
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      base64: dataUrl.slice(idx + 1),
+    });
+  }
+
+  function downloadRetrievedBlob() {
+    if (!retrievedBlob) return;
+
+    if (retrievedBlob.encoding === 'base64') {
+      const binary = atob(retrievedBlob.deliveredCiphertext);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const blob = new Blob([bytes], { type: retrievedBlob.mimeType || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = retrievedBlob.fileName || `${retrievedBlob.blobId}.bin`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const blob = new Blob([retrievedBlob.deliveredCiphertext], { type: retrievedBlob.mimeType || 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = retrievedBlob.fileName || `${retrievedBlob.blobId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   const owner = snapshot.identities.find((identity) => identity.role === 'owner');
@@ -435,12 +495,26 @@ export function App() {
             value={seedBlobContent}
             onChange={(event) => setSeedBlobContent(event.target.value)}
             rows={3}
+            disabled={Boolean(seedFile)}
           />
+          <label style={{ marginTop: 8 }}>Upload file blob (image, audio, etc.)</label>
+          <input
+            type="file"
+            onChange={(event) => {
+              void onSeedFileSelected(event.target.files?.[0] ?? null).catch((error) => {
+                setStatus(error instanceof Error ? error.message : 'Failed to read selected file');
+              });
+            }}
+          />
+          {seedFile && <p className="muted">Selected file: {seedFile.name} ({seedFile.mimeType})</p>}
           <div className="dual" style={{ marginTop: 12 }}>
             <button
               onClick={() =>
                 void run('seed blob', async () => {
-                  const result = await uploadBlob(seedBlobId, seedBlobContent) as {
+                  const content = seedFile ? seedFile.base64 : seedBlobContent;
+                  const result = await uploadBlob(seedBlobId, content, seedFile
+                    ? { encoding: 'base64', mimeType: seedFile.mimeType, fileName: seedFile.name }
+                    : { encoding: 'utf8', mimeType: 'text/plain', fileName: `${seedBlobId}.txt` }) as {
                     blobId: string;
                     contentRef: string;
                     deduped?: boolean;
@@ -460,7 +534,7 @@ export function App() {
                   setStallBlobId(result.blobId);
                 })
               }
-              disabled={!seedBlobId || !seedBlobContent}
+              disabled={!seedBlobId || (!seedBlobContent && !seedFile)}
             >
               Seed Blob
             </button>
@@ -490,6 +564,9 @@ export function App() {
                     fromRole: 'provider' | 'provider2' | 'provider3';
                     providerNpub: string;
                     deliveredCiphertext: string;
+                    encoding?: 'utf8' | 'base64';
+                    mimeType?: string;
+                    fileName?: string;
                     transportNote: string;
                   };
                   setRetrievedBlob(blob);
@@ -505,8 +582,12 @@ export function App() {
               <div className="sub-row"><span>Blob</span><span>{retrievedBlob.blobId}</span></div>
               <div className="sub-row"><span>CID</span><code>{shortId(retrievedBlob.cid, 14)}</code></div>
               <div className="sub-row"><span>From</span><span>{roleName(retrievedBlob.fromRole)} ({shortId(retrievedBlob.providerNpub, 10)})</span></div>
-              <div className="sub-row"><span>Payload</span><code className="content-wrap">{retrievedBlob.deliveredCiphertext}</code></div>
+              <div className="sub-row"><span>Encoding</span><span>{retrievedBlob.encoding ?? 'utf8'}</span></div>
+              {retrievedBlob.fileName && <div className="sub-row"><span>File</span><span>{retrievedBlob.fileName}</span></div>}
+              {retrievedBlob.mimeType && <div className="sub-row"><span>MIME</span><span>{retrievedBlob.mimeType}</span></div>}
+              <div className="sub-row"><span>Payload</span><code className="content-wrap">{retrievedBlob.encoding === 'base64' ? `${retrievedBlob.deliveredCiphertext.slice(0, 72)}...` : retrievedBlob.deliveredCiphertext}</code></div>
               <div className="sub-row"><span>Flow</span><span className="muted">{retrievedBlob.transportNote}</span></div>
+              <button style={{ marginTop: 8 }} onClick={downloadRetrievedBlob}>Download Retrieved Blob</button>
             </div>
           )}
 

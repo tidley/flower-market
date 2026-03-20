@@ -256,8 +256,12 @@ export class FlowerDaemon {
     };
   }
 
-  seedBlob(blobId: string, content: string): BlossomFixture {
-    const blob = this.blossom.seed(createBlossomFixture(blobId, content));
+  seedBlob(
+    blobId: string,
+    content: string,
+    options?: { encoding?: 'utf8' | 'base64'; mimeType?: string; fileName?: string },
+  ): BlossomFixture {
+    const blob = this.blossom.seed(createBlossomFixture(blobId, content, options));
     this.cidToBlobId.set(blob.contentRef, blob.blobId);
     this.registerReplica(blob.contentRef, 'provider');
     this.registerReplica(blob.contentRef, 'provider2');
@@ -533,6 +537,9 @@ export class FlowerDaemon {
     fromRole: 'provider' | 'provider2' | 'provider3';
     providerNpub: string;
     deliveredCiphertext: string;
+    encoding?: 'utf8' | 'base64';
+    mimeType?: string;
+    fileName?: string;
     transportNote: string;
   }> {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
@@ -548,6 +555,9 @@ export class FlowerDaemon {
       fromRole: input.fromRole,
       providerNpub,
       deliveredCiphertext: blob.content,
+      encoding: blob.encoding,
+      mimeType: blob.mimeType,
+      fileName: blob.fileName,
       transportNote: 'SP decrypted its provider-wrap, recovered DO ciphertext, and delivered ciphertext payload to DO.',
     };
   }

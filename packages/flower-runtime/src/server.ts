@@ -53,9 +53,19 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
       }
 
       if (request.method === 'POST' && url.pathname === '/api/blobs') {
-        const body = await readJson<{ blobId?: string; content: string }>(request);
+        const body = await readJson<{
+          blobId?: string;
+          content: string;
+          encoding?: 'utf8' | 'base64';
+          mimeType?: string;
+          fileName?: string;
+        }>(request);
         const requestedBlobId = body.blobId ?? `blob_${Date.now()}`;
-        const candidate = createBlossomFixture(requestedBlobId, body.content);
+        const candidate = createBlossomFixture(requestedBlobId, body.content, {
+          encoding: body.encoding,
+          mimeType: body.mimeType,
+          fileName: body.fileName,
+        });
         const existing = daemon.listBlobs().find((entry) => entry.contentRef === candidate.contentRef);
 
         if (existing) {
@@ -69,7 +79,11 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
           return;
         }
 
-        const blob = daemon.seedBlob(requestedBlobId, body.content);
+        const blob = daemon.seedBlob(requestedBlobId, body.content, {
+          encoding: body.encoding,
+          mimeType: body.mimeType,
+          fileName: body.fileName,
+        });
         json(response, 200, { ...blob, deduped: false, requestedBlobId, existingBlobId: null });
         return;
       }

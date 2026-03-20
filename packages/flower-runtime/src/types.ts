@@ -177,6 +177,9 @@ export interface BlossomFixture {
   merkleRoot: string;
   sampleLeafHash: string;
   sampleProof: MerkleProofNode[];
+  encoding?: 'utf8' | 'base64';
+  mimeType?: string;
+  fileName?: string;
   leafProofs?: Array<{
     leafHash: string;
     proof: MerkleProofNode[];

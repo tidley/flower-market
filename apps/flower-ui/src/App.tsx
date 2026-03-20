@@ -103,6 +103,7 @@ export function App() {
   const [retrieveFromRole, setRetrieveFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
   const [stallFeeSats, setStallFeeSats] = useState(1);
+  const [rewardSchedule, setRewardSchedule] = useState<[number, number, number]>([15, 12, 9]);
   const [retrievedBlob, setRetrievedBlob] = useState<RetrievedBlobView | null>(null);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
 
@@ -147,7 +148,7 @@ export function App() {
       void run('auto challenge', async () => {
         await createChallenge({
           blobId: challengeBlobId,
-          payoutSchedule: [15, 12, 9],
+          payoutSchedule: rewardSchedule,
           reliabilityBonusMsats: 1000,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
@@ -159,7 +160,7 @@ export function App() {
       if (autoTimer.current) window.clearInterval(autoTimer.current);
       autoTimer.current = null;
     };
-  }, [autoMode, challengeBlobId]);
+  }, [autoMode, challengeBlobId, rewardSchedule]);
 
   async function run(label: string, task: () => Promise<unknown>) {
     setBusy(label);
@@ -630,13 +631,49 @@ export function App() {
             ))}
           </select>
 
+          <div className="dual" style={{ marginTop: 8 }}>
+            <div>
+              <label>Rank #1 sats</label>
+              <input
+                type="number"
+                min={0}
+                value={rewardSchedule[0]}
+                onChange={(event) =>
+                  setRewardSchedule(([_, r2, r3]) => [Math.max(0, Number(event.target.value)), r2, r3])
+                }
+              />
+            </div>
+            <div>
+              <label>Rank #2 sats</label>
+              <input
+                type="number"
+                min={0}
+                value={rewardSchedule[1]}
+                onChange={(event) =>
+                  setRewardSchedule(([r1, _, r3]) => [r1, Math.max(0, Number(event.target.value)), r3])
+                }
+              />
+            </div>
+            <div>
+              <label>Rank #3 sats</label>
+              <input
+                type="number"
+                min={0}
+                value={rewardSchedule[2]}
+                onChange={(event) =>
+                  setRewardSchedule(([r1, r2]) => [r1, r2, Math.max(0, Number(event.target.value))])
+                }
+              />
+            </div>
+          </div>
+
           <div className="dual" style={{ marginTop: 12 }}>
             <button
               onClick={() =>
                 void run('manual challenge', () =>
                   createChallenge({
                     blobId: challengeBlobId,
-                    payoutSchedule: [15, 12, 9],
+                    payoutSchedule: rewardSchedule,
                     reliabilityBonusMsats: 1000,
                     commitLeadSeconds: 20,
                     revealLeadSeconds: 40,
@@ -678,7 +715,7 @@ export function App() {
                   for (let i = 0; i < 3; i += 1) {
                     await createChallenge({
                       blobId: challengeBlobId || seedBlobId,
-                      payoutSchedule: [15, 12, 9],
+                      payoutSchedule: rewardSchedule,
                       reliabilityBonusMsats: 1000,
                       commitLeadSeconds: 20,
                       revealLeadSeconds: 40,

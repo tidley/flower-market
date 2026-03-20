@@ -54,6 +54,12 @@ export interface FlowerDaemonConfig {
   ignoreRelayHistory?: boolean;
 }
 
+function roleName(role: ProviderRole): string {
+  if (role === 'provider') return 'SP1';
+  if (role === 'provider2') return 'SP2';
+  return 'SP3';
+}
+
 type PublishedMessage = {
   id: string;
   kind: number;
@@ -566,7 +572,7 @@ export class FlowerDaemon {
       encoding: blob.encoding,
       mimeType: blob.mimeType,
       fileName: blob.fileName,
-      transportNote: `SP ${input.fromRole} decrypted its provider-wrap, recovered the DO ciphertext, and then the DO unwrap recovered the plaintext payload.`,
+      transportNote: `${roleName(input.fromRole)} decrypted its provider-wrap, recovered the DO ciphertext, then DO decrypt recovered the plaintext payload.`,
       envelope,
     };
   }

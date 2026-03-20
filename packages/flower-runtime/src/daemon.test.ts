@@ -94,7 +94,7 @@ describe('FlowerDaemon', () => {
     expect(retrieved.plaintextPayload).toBe(payloadB64);
     expect(retrieved.deliveredCiphertext).toBe(payloadB64);
     expect(retrieved.envelope.wrapsByProvider.provider3?.sourceRole).toBe('provider');
-    expect(retrieved.transportNote).toContain('DO unwrap');
+    expect(retrieved.transportNote).toContain('DO decrypt');
     expect(retrieved.encoding).toBe('base64');
     expect(retrieved.mimeType).toBe('audio/mpeg');
     expect(retrieved.fileName).toBe('demo.mp3');

@@ -178,7 +178,8 @@ export function App() {
       autoTimer.current = null;
       return;
     }
-    autoTimer.current = window.setInterval(() => {
+
+    const postFixedBlobChallenge = () => {
       if (!challengeBlobId) return;
       void run('auto challenge', async () => {
         await createChallenge({
@@ -189,7 +190,10 @@ export function App() {
           revealLeadSeconds: 40,
         });
       });
-    }, 30_000);
+    };
+
+    postFixedBlobChallenge();
+    autoTimer.current = window.setInterval(postFixedBlobChallenge, 30_000);
 
     return () => {
       if (autoTimer.current) window.clearInterval(autoTimer.current);
@@ -204,7 +208,7 @@ export function App() {
       return;
     }
 
-    autoLibraryTimer.current = window.setInterval(() => {
+    const postLibraryChallenge = () => {
       if (snapshot.blobs.length === 0) return;
       const randomBlob = snapshot.blobs[Math.floor(Math.random() * snapshot.blobs.length)];
       if (!randomBlob) return;
@@ -217,13 +221,16 @@ export function App() {
           revealLeadSeconds: 40,
         });
       });
-    }, 30_000);
+    };
+
+    postLibraryChallenge();
+    autoLibraryTimer.current = window.setInterval(postLibraryChallenge, 30_000);
 
     return () => {
       if (autoLibraryTimer.current) window.clearInterval(autoLibraryTimer.current);
       autoLibraryTimer.current = null;
     };
-  }, [autoLibraryMode, snapshot.blobs, rewardSchedule, reliabilityBonusMsats]);
+  }, [autoLibraryMode, snapshot.blobs.length, rewardSchedule, reliabilityBonusMsats]);
 
   async function run(label: string, task: () => Promise<unknown>) {
     setBusy(label);

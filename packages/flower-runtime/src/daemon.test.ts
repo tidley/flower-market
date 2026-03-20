@@ -46,4 +46,70 @@ describe('FlowerDaemon', () => {
     expect(settledListing?.settlement?.payload.verified).toBe(true);
     expect(settledListing?.settlement?.payload.eligibility).toBe('pending');
   });
+
+  it('tracks replica coverage after randomized stall transfers across several blobs', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    const blobs = [
+      daemon.seedBlob('blob_1', 'payload A'),
+      daemon.seedBlob('blob_2', 'payload B'),
+      daemon.seedBlob('blob_3', 'payload A'),
+      daemon.seedBlob('blob_4', 'payload C'),
+      daemon.seedBlob('blob_5', 'payload D'),
+    ];
+
+    const roles = ['provider', 'provider2', 'provider3'] as const;
+    const hostsByCid = new Map<string, Set<(typeof roles)[number]>>();
+    for (const blob of blobs) {
+      hostsByCid.set(blob.contentRef, new Set(['provider', 'provider2']));
+    }
+
+    let seed = 1337;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+
+    for (let i = 0; i < 30; i += 1) {
+      const blob = blobs[Math.floor(rand() * blobs.length)];
+      const cidHosts = [...(hostsByCid.get(blob.contentRef) ?? new Set(['provider']))];
+      const fromRole = cidHosts[Math.floor(rand() * cidHosts.length)];
+      const toCandidates = roles.filter((role) => role !== fromRole);
+      const toRole = toCandidates[Math.floor(rand() * toCandidates.length)];
+
+      const receipt = await daemon.requestTransferViaStall({
+        blobId: blob.blobId,
+        fromRole,
+        toRole,
+        supplierFeeSats: 1,
+        stallFeeSats: 1,
+      });
+      expect(receipt.blobId).toBe(blob.blobId);
+      hostsByCid.get(blob.contentRef)?.add(toRole);
+    }
+
+    const snapshot = await daemon.getSnapshot();
+    expect(snapshot.blobs).toHaveLength(5);
+
+    const byCid = new Map(snapshot.replicaRegistry.map((entry) => [entry.cid, entry]));
+    for (const [cid, hosts] of hostsByCid.entries()) {
+      const entry = byCid.get(cid);
+      expect(entry).toBeTruthy();
+      for (const role of roles) {
+        const covered = Boolean(entry?.rootsByProvider[role]);
+        expect(covered).toBe(hosts.has(role));
+      }
+    }
+
+    for (const blob of blobs) {
+      const hosts = hostsByCid.get(blob.contentRef) ?? new Set<typeof roles[number]>();
+      for (const role of hosts) {
+        const retrieval = await daemon.retrieveBlobViaProvider({ blobId: blob.blobId, fromRole: role });
+        expect(retrieval.blobId).toBe(blob.blobId);
+        expect(retrieval.cid).toBe(blob.contentRef);
+      }
+    }
+  });
 });

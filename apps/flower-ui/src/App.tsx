@@ -126,6 +126,8 @@ export function App() {
   const [stallFeeSats, setStallFeeSats] = useState(1);
   const [rewardSchedule, setRewardSchedule] = useState<[number, number, number]>([15, 12, 9]);
   const [reliabilityBonusMsats, setReliabilityBonusMsats] = useState(1000);
+  const [commitLeadSeconds, setCommitLeadSeconds] = useState(30);
+  const [revealLeadSeconds, setRevealLeadSeconds] = useState(60);
   const [retrievedBlob, setRetrievedBlob] = useState<RetrievedBlobView | null>(null);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
 
@@ -186,8 +188,8 @@ export function App() {
           blobId: challengeBlobId,
           payoutSchedule: rewardSchedule,
           reliabilityBonusMsats,
-          commitLeadSeconds: 20,
-          revealLeadSeconds: 40,
+          commitLeadSeconds,
+          revealLeadSeconds,
           autoRespondProviders: true,
         });
       });
@@ -200,7 +202,7 @@ export function App() {
       if (autoTimer.current) window.clearInterval(autoTimer.current);
       autoTimer.current = null;
     };
-  }, [autoMode, challengeBlobId, rewardSchedule, reliabilityBonusMsats]);
+  }, [autoMode, challengeBlobId, rewardSchedule, reliabilityBonusMsats, commitLeadSeconds, revealLeadSeconds]);
 
   useEffect(() => {
     if (!autoLibraryMode) {
@@ -218,8 +220,8 @@ export function App() {
           blobId: randomBlob.blobId,
           payoutSchedule: rewardSchedule,
           reliabilityBonusMsats,
-          commitLeadSeconds: 20,
-          revealLeadSeconds: 40,
+          commitLeadSeconds,
+          revealLeadSeconds,
           autoRespondProviders: true,
         });
       });
@@ -232,7 +234,7 @@ export function App() {
       if (autoLibraryTimer.current) window.clearInterval(autoLibraryTimer.current);
       autoLibraryTimer.current = null;
     };
-  }, [autoLibraryMode, snapshot.blobs.length, rewardSchedule, reliabilityBonusMsats]);
+  }, [autoLibraryMode, snapshot.blobs.length, rewardSchedule, reliabilityBonusMsats, commitLeadSeconds, revealLeadSeconds]);
 
   async function run(label: string, task: () => Promise<unknown>) {
     setBusy(label);
@@ -740,14 +742,34 @@ export function App() {
             </div>
           </div>
 
-          <div style={{ marginTop: 8, maxWidth: 260 }}>
-            <label>Reliability bonus (msat)</label>
-            <input
-              type="number"
-              min={0}
-              value={reliabilityBonusMsats}
-              onChange={(event) => setReliabilityBonusMsats(Math.max(0, Number(event.target.value)))}
-            />
+          <div className="dual" style={{ marginTop: 8 }}>
+            <div>
+              <label>Commit deadline (seconds)</label>
+              <input
+                type="number"
+                min={1}
+                value={commitLeadSeconds}
+                onChange={(event) => setCommitLeadSeconds(Math.max(1, Number(event.target.value)))}
+              />
+            </div>
+            <div>
+              <label>Reveal deadline (seconds)</label>
+              <input
+                type="number"
+                min={1}
+                value={revealLeadSeconds}
+                onChange={(event) => setRevealLeadSeconds(Math.max(1, Number(event.target.value)))}
+              />
+            </div>
+            <div>
+              <label>Reliability bonus (msat)</label>
+              <input
+                type="number"
+                min={0}
+                value={reliabilityBonusMsats}
+                onChange={(event) => setReliabilityBonusMsats(Math.max(0, Number(event.target.value)))}
+              />
+            </div>
           </div>
 
           <div className="dual" style={{ marginTop: 12 }}>
@@ -758,8 +780,8 @@ export function App() {
                     blobId: challengeBlobId,
                     payoutSchedule: rewardSchedule,
                     reliabilityBonusMsats,
-                    commitLeadSeconds: 20,
-                    revealLeadSeconds: 40,
+                    commitLeadSeconds,
+                    revealLeadSeconds,
                   }),
                 )
               }
@@ -815,8 +837,8 @@ export function App() {
                       blobId: challengeBlobId || seedBlobId,
                       payoutSchedule: rewardSchedule,
                       reliabilityBonusMsats,
-                      commitLeadSeconds: 20,
-                      revealLeadSeconds: 40,
+                      commitLeadSeconds,
+                      revealLeadSeconds,
                       autoRespondProviders: true,
                     });
                   }

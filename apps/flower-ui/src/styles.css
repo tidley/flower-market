@@ -112,6 +112,11 @@ button{
   cursor:pointer;
 }
 button:disabled{opacity:.45;cursor:not-allowed}
+button.click-flash{
+  background:linear-gradient(135deg, #6b7280, #9ca3af) !important;
+  color:#0b1220 !important;
+  transition:background .15s ease;
+}
 .dual,.triple{display:grid;gap:12px}
 .dual{grid-template-columns:repeat(3,minmax(0,1fr))}
 .triple{grid-template-columns:repeat(3,minmax(0,1fr))}

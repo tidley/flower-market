@@ -160,6 +160,19 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const button = target?.closest('button');
+      if (!button || (button as HTMLButtonElement).disabled) return;
+      button.classList.add('click-flash');
+      window.setTimeout(() => button.classList.remove('click-flash'), 1800);
+    };
+
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
+
+  useEffect(() => {
     if (!autoMode) {
       if (autoTimer.current) window.clearInterval(autoTimer.current);
       autoTimer.current = null;

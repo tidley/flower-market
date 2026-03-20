@@ -360,6 +360,17 @@ export function App() {
 
   const latestRound = recentSettlements[0] ?? null;
 
+  const payoutReceiptRows = useMemo(() => {
+    return recentSettlements.flatMap((entry) =>
+      (entry.settlement?.payload.payoutReceipts ?? []).map((receipt) => ({
+        ...receipt,
+        challengeId: entry.challenge.payload.challengeId,
+        challengeCid: entry.challenge.payload.contentRef,
+        settledAt: entry.settlement?.createdAt ?? null,
+      })),
+    );
+  }, [recentSettlements]);
+
   const balanceView = useMemo(() => {
     const toRow = (role: string) => {
       const b = snapshot.balances.find((entry) => entry.role === role);
@@ -1220,18 +1231,33 @@ export function App() {
                 ))}
 
                 <h3 style={{ marginTop: 16 }}>Payout receipts</h3>
-                {recentSettlements
-                  .flatMap((s) => s.settlement?.payload.payoutReceipts ?? [])
-                  .filter((r) => r.responder === sp.npub).length === 0 ? (
+                {payoutReceiptRows.filter((r) => r.responder === sp.npub).length === 0 ? (
                   <p className="muted">No payouts for this SP yet.</p>
                 ) : (
-                  recentSettlements
-                    .flatMap((s) => s.settlement?.payload.payoutReceipts ?? [])
+                  payoutReceiptRows
                     .filter((r) => r.responder === sp.npub)
                     .map((r) => (
-                      <div key={r.payoutId} className="sub-row">
-                        <span>{r.amountMsats} msat</span>
-                        <span>{r.mintUrl}</span>
+                      <div key={r.payoutId} className="result-card compact-card" style={{ marginBottom: 8 }}>
+                        <div className="sub-row">
+                          <span>Amount</span>
+                          <span>{r.amountMsats} msat</span>
+                        </div>
+                        <div className="sub-row">
+                          <span>Mint</span>
+                          <span>{r.mintUrl}</span>
+                        </div>
+                        <div className="sub-row">
+                          <span>Challenge</span>
+                          <code>{shortId(r.challengeId, 12)}</code>
+                        </div>
+                        <div className="sub-row">
+                          <span>CID</span>
+                          <code>{shortId(r.challengeCid, 14)}</code>
+                        </div>
+                        <div className="sub-row">
+                          <span>Settlement time</span>
+                          <span>{fmtTs(r.settledAt)}</span>
+                        </div>
                       </div>
                     ))
                 )}

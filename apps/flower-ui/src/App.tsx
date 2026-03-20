@@ -188,6 +188,7 @@ export function App() {
           reliabilityBonusMsats,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
+          autoRespondProviders: true,
         });
       });
     };
@@ -219,6 +220,7 @@ export function App() {
           reliabilityBonusMsats,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
+          autoRespondProviders: true,
         });
       });
     };

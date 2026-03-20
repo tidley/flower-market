@@ -60,6 +60,10 @@ function roleName(role: ProviderRole): string {
   return 'SP3';
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 type PublishedMessage = {
   id: string;
   kind: number;
@@ -113,6 +117,7 @@ export class FlowerDaemon {
   private startedAtSec = Math.floor(Date.now() / 1000);
   private sessionChallengeIds = new Set<string>();
   private sessionListingIds = new Set<string>();
+  private challengesPendingAutoResponse = new Set<string>();
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -313,12 +318,24 @@ export class FlowerDaemon {
     const challengeNoteId = await this.publishChallengeNote(event);
 
     if (input.autoRespondProviders) {
-      const sp1 = await this.respondToChallenge(event.payload.challengeId, 'provider');
-      const sp2 = await this.respondToChallenge(event.payload.challengeId, 'provider2');
-      const sp3 = await this.respondToChallenge(event.payload.challengeId, 'provider3');
-      await this.publishProofReplyNote(event, challengeNoteId, 'provider', sp1.reveal, sp1.commit);
-      await this.publishProofReplyNote(event, challengeNoteId, 'provider2', sp2.reveal, sp2.commit);
-      await this.publishProofReplyNote(event, challengeNoteId, 'provider3', sp3.reveal, sp3.commit);
+      const roles: ProviderRole[] = ['provider', 'provider2', 'provider3'];
+      const seed = [...event.payload.challengeId].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+      const start = seed % roles.length;
+      const ordered = [...roles.slice(start), ...roles.slice(0, start)];
+
+      this.challengesPendingAutoResponse.add(event.payload.challengeId);
+      try {
+        for (let i = 0; i < ordered.length; i += 1) {
+          const role = ordered[i];
+          const response = await this.respondToChallenge(event.payload.challengeId, role);
+          await this.publishProofReplyNote(event, challengeNoteId, role, response.reveal, response.commit);
+          if (i < ordered.length - 1) {
+            await sleep(250 + i * 250);
+          }
+        }
+      } finally {
+        this.challengesPendingAutoResponse.delete(event.payload.challengeId);
+      }
     }
 
     return event;
@@ -675,6 +692,10 @@ export class FlowerDaemon {
       if (challengeView.settlement || challengeView.reveals.length === 0) {
         continue;
       }
+      if (this.challengesPendingAutoResponse.has(challengeView.challenge.payload.challengeId)) {
+        continue;
+      }
+
 
       try {
         const blob = await fetchBlossomObject(

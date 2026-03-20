@@ -173,16 +173,10 @@ export function App() {
 
   const blobNameByContentRef = useMemo(() => {
     const map = new Map<string, string>();
-    snapshot.blobs.forEach((blob) => map.set(blob.contentRef, blob.blobId));
-    return map;
-  }, [snapshot.blobs]);
-
-  const blobIdsByContentRef = useMemo(() => {
-    const map = new Map<string, string[]>();
     snapshot.blobs.forEach((blob) => {
-      const ids = map.get(blob.contentRef) ?? [];
-      ids.push(blob.blobId);
-      map.set(blob.contentRef, ids);
+      if (!map.has(blob.contentRef)) {
+        map.set(blob.contentRef, blob.blobId);
+      }
     });
     return map;
   }, [snapshot.blobs]);
@@ -998,13 +992,12 @@ export function App() {
             <p className="muted">No replicas registered yet.</p>
           ) : (
             snapshot.replicaRegistry.map((entry) => {
-              const blobIds = blobIdsByContentRef.get(entry.cid) ?? [];
-              const blobLabel = blobIds.length > 0 ? blobIds.join(', ') : 'unknown';
+              const blobName = blobNameByContentRef.get(entry.cid) ?? 'unknown';
               return (
                 <div key={`stall-repl-${entry.cid}`} className="result-card">
                   <div className="sub-row">
-                    <span>Blob(s)</span>
-                    <span>{blobLabel}</span>
+                    <span>Blob</span>
+                    <span>{blobName}</span>
                   </div>
                   <div className="sub-row">
                     <span>CID</span>

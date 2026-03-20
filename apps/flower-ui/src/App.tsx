@@ -28,7 +28,7 @@ function parseView(): DemoView {
 
 function fmtTs(ts: number | null): string {
   if (!ts) return 'never';
-  return new Date(ts * 1000).toISOString();
+  return new Date(ts * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
 }
 
 function roleLabel(role: 'provider' | 'provider2' | 'provider3'): string {
@@ -575,6 +575,7 @@ export function App() {
                       reliabilityBonusMsats: 1000,
                       commitLeadSeconds: 20,
                       revealLeadSeconds: 40,
+                      autoRespondProviders: true,
                     });
                   }
                 })

@@ -22,6 +22,7 @@ describe('FlowerDaemon', () => {
       reliabilityBonusMsats: 1000,
       commitLeadSeconds: 30,
       revealLeadSeconds: 60,
+      autoRespondProviders: true,
     });
     await daemon.tick();
 
@@ -45,6 +46,27 @@ describe('FlowerDaemon', () => {
     expect(winners.map((winner) => winner.baseSats).slice(0, 2)).toEqual([15, 10]);
     expect(settledListing?.settlement?.payload.verified).toBe(true);
     expect(settledListing?.settlement?.payload.eligibility).toBe('pending');
+  });
+
+  it('creates open challenges without auto replies unless explicitly requested', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    daemon.seedBlob('blob_manual', 'manual payload');
+    const challenge = await daemon.publishChallenge({
+      blobId: 'blob_manual',
+      payoutSchedule: [15, 10, 5],
+      reliabilityBonusMsats: 1000,
+      commitLeadSeconds: 30,
+      revealLeadSeconds: 60,
+    });
+
+    await daemon.tick();
+    const snapshot = await daemon.getSnapshot();
+    const view = snapshot.challenges.find((entry) => entry.challenge.payload.challengeId === challenge.payload.challengeId);
+    expect(view?.status).toBe('open');
+    expect(view?.reveals ?? []).toHaveLength(0);
   });
 
   it('tracks replica coverage after randomized stall transfers across several blobs', async () => {

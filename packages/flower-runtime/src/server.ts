@@ -105,6 +105,7 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
           reliabilityBonusMsats: number;
           commitLeadSeconds: number;
           revealLeadSeconds: number;
+          autoRespondProviders?: boolean;
         }>(request);
         json(response, 200, await daemon.publishChallenge(body));
         return;

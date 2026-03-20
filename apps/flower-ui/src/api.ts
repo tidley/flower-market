@@ -56,6 +56,7 @@ export function createChallenge(input: {
   reliabilityBonusMsats: number;
   commitLeadSeconds: number;
   revealLeadSeconds: number;
+  autoRespondProviders?: boolean;
 }) {
   return request('/api/challenges', {
     method: 'POST',

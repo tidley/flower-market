@@ -270,6 +270,7 @@ export class FlowerDaemon {
     reliabilityBonusMsats: number;
     commitLeadSeconds: number;
     revealLeadSeconds: number;
+    autoRespondProviders?: boolean;
   }): Promise<PublishedFlowerEvent<ChallengeEventPayload>> {
     const blob = await fetchBlossomObject(this.blossomBaseUrl, input.blobId);
     const now = Math.floor(Date.now() / 1000);
@@ -291,12 +292,14 @@ export class FlowerDaemon {
 
     const challengeNoteId = await this.publishChallengeNote(event);
 
-    const sp1 = await this.respondToChallenge(event.payload.challengeId, 'provider');
-    const sp2 = await this.respondToChallenge(event.payload.challengeId, 'provider2');
-    const sp3 = await this.respondToChallenge(event.payload.challengeId, 'provider3');
-    await this.publishProofReplyNote(event, challengeNoteId, 'provider', sp1.reveal, sp1.commit);
-    await this.publishProofReplyNote(event, challengeNoteId, 'provider2', sp2.reveal, sp2.commit);
-    await this.publishProofReplyNote(event, challengeNoteId, 'provider3', sp3.reveal, sp3.commit);
+    if (input.autoRespondProviders) {
+      const sp1 = await this.respondToChallenge(event.payload.challengeId, 'provider');
+      const sp2 = await this.respondToChallenge(event.payload.challengeId, 'provider2');
+      const sp3 = await this.respondToChallenge(event.payload.challengeId, 'provider3');
+      await this.publishProofReplyNote(event, challengeNoteId, 'provider', sp1.reveal, sp1.commit);
+      await this.publishProofReplyNote(event, challengeNoteId, 'provider2', sp2.reveal, sp2.commit);
+      await this.publishProofReplyNote(event, challengeNoteId, 'provider3', sp3.reveal, sp3.commit);
+    }
 
     return event;
   }
@@ -324,6 +327,11 @@ export class FlowerDaemon {
       proof: blob.sampleProof,
     };
 
+    const perfSeed = `${challengeId}:${providerRole}`;
+    const perfHash = [...perfSeed].reduce((acc, ch, idx) => ((acc * 33) ^ (ch.charCodeAt(0) + idx)) >>> 0, 5381);
+    const latencyMs = 45 + (perfHash % 85);
+    const reliabilityScore = Number((0.92 + ((perfHash >> 8) % 80) / 1000).toFixed(4));
+
     const commit = await this.transport.publish(responderSigner, {
       type: 'commit',
       challengeId,
@@ -338,8 +346,8 @@ export class FlowerDaemon {
       responder: responderSigner.npub,
       commitTs: now,
       revealTs: now + 1,
-      latencyMs: 75,
-      reliabilityScore: 0.96,
+      latencyMs,
+      reliabilityScore,
       leafHash: selectedLeaf.leafHash,
       proof: selectedLeaf.proof,
       expectedRoot: blob.merkleRoot,

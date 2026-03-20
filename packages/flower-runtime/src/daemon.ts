@@ -327,8 +327,15 @@ export class FlowerDaemon {
       try {
         for (let i = 0; i < ordered.length; i += 1) {
           const role = ordered[i];
-          const response = await this.respondToChallenge(event.payload.challengeId, role);
-          await this.publishProofReplyNote(event, challengeNoteId, role, response.reveal, response.commit);
+          try {
+            const response = await this.respondToChallenge(event.payload.challengeId, role);
+            await this.publishProofReplyNote(event, challengeNoteId, role, response.reveal, response.commit);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!message.includes('does not host')) {
+              throw error;
+            }
+          }
           if (i < ordered.length - 1) {
             await sleep(250 + i * 250);
           }
@@ -358,6 +365,10 @@ export class FlowerDaemon {
     const revealNonce = randomId('reveal');
     const now = Math.floor(Date.now() / 1000);
     const responderSigner = this.signerForRole(providerRole);
+
+    if (!this.inventoryByRole.get(providerRole)?.has(blob.contentRef)) {
+      throw new Error(`${providerRole} does not host ${blob.contentRef}`);
+    }
     const challengedLeafIndex = challenge.payload.leafIndex;
     const selectedLeaf = blob.leafProofs?.[challengedLeafIndex] ?? {
       leafHash: blob.sampleLeafHash,

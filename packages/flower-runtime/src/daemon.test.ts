@@ -70,6 +70,23 @@ describe('FlowerDaemon', () => {
     expect(view?.reveals ?? []).toHaveLength(0);
   });
 
+  it('prevents responses from providers that do not host the challenge blob', async () => {
+    const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
+    daemons.push(daemon);
+    await daemon.start();
+
+    daemon.seedBlob('blob_missing_sp3', 'payload');
+    const challenge = await daemon.publishChallenge({
+      blobId: 'blob_missing_sp3',
+      payoutSchedule: [5, 3, 1],
+      reliabilityBonusMsats: 0,
+      commitLeadSeconds: 30,
+      revealLeadSeconds: 60,
+    });
+
+    await expect(daemon.respondToChallenge(challenge.payload.challengeId, 'provider3')).rejects.toThrow('does not host');
+  });
+
   it('retrieves seeded binary-style blobs with file metadata through provider and DO unwraps', async () => {
     const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
     daemons.push(daemon);

@@ -237,7 +237,7 @@ export class FlowerDaemon {
   }
 
   async getSnapshot(): Promise<RuntimeSnapshot> {
-    const events = await this.transport.list();
+    const events = await this.listEvents();
     const parsed = parseRuntimeEvents(events);
     const identities = this.identities();
 

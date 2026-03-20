@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
+import { createBlossomFixture } from './blossom.ts';
 import { FlowerDaemon, type FlowerDaemonConfig } from './daemon.ts';
 
 function json(response: ServerResponse, statusCode: number, body: unknown): void {
@@ -53,8 +54,23 @@ export async function startFlowerDaemonServer(config: FlowerDaemonConfig = {}): 
 
       if (request.method === 'POST' && url.pathname === '/api/blobs') {
         const body = await readJson<{ blobId?: string; content: string }>(request);
-        const blob = daemon.seedBlob(body.blobId ?? `blob_${Date.now()}`, body.content);
-        json(response, 200, blob);
+        const requestedBlobId = body.blobId ?? `blob_${Date.now()}`;
+        const candidate = createBlossomFixture(requestedBlobId, body.content);
+        const existing = daemon.listBlobs().find((entry) => entry.contentRef === candidate.contentRef);
+
+        if (existing) {
+          json(response, 200, {
+            ...existing,
+            deduped: true,
+            requestedBlobId,
+            existingBlobId: existing.blobId,
+            message: `The file (${requestedBlobId}) is already stored as (${existing.blobId}) with CID ${existing.contentRef}.`,
+          });
+          return;
+        }
+
+        const blob = daemon.seedBlob(requestedBlobId, body.content);
+        json(response, 200, { ...blob, deduped: false, requestedBlobId, existingBlobId: null });
         return;
       }
 

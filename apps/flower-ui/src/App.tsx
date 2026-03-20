@@ -84,6 +84,7 @@ export function App() {
     deliveredCiphertext: string;
     transportNote: string;
   } | null>(null);
+  const [seedNotice, setSeedNotice] = useState<string | null>(null);
 
 
   async function refreshState() {
@@ -439,8 +440,24 @@ export function App() {
             <button
               onClick={() =>
                 void run('seed blob', async () => {
-                  await uploadBlob(seedBlobId, seedBlobContent);
-                  setChallengeBlobId(seedBlobId);
+                  const result = await uploadBlob(seedBlobId, seedBlobContent) as {
+                    blobId: string;
+                    contentRef: string;
+                    deduped?: boolean;
+                    message?: string;
+                    existingBlobId?: string | null;
+                  };
+
+                  if (result.deduped) {
+                    setSeedNotice(result.message ?? `The file (${seedBlobId}) is already stored as (${result.existingBlobId ?? result.blobId}) with CID ${result.contentRef}.`);
+                    setChallengeBlobId(result.existingBlobId ?? result.blobId);
+                    setStallBlobId(result.existingBlobId ?? result.blobId);
+                    return;
+                  }
+
+                  setSeedNotice(`Stored blob (${result.blobId}) with CID ${result.contentRef}.`);
+                  setChallengeBlobId(result.blobId);
+                  setStallBlobId(result.blobId);
                 })
               }
               disabled={!seedBlobId || !seedBlobContent}
@@ -448,6 +465,7 @@ export function App() {
               Seed Blob
             </button>
           </div>
+          {seedNotice && <p className="muted" style={{ marginTop: 8 }}>{seedNotice}</p>}
 
           <h3 style={{ marginTop: 16 }}>Retrieve Blob (Challenger)</h3>
           <div className="dual" style={{ marginTop: 8 }}>

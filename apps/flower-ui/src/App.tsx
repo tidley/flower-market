@@ -340,6 +340,7 @@ export function App() {
         .filter((entry) => Boolean(entry.rootsByProvider[role]))
         .map((entry) => ({
           cid: entry.cid,
+          storedCid: entry.storedCidByProvider?.[role] ?? entry.cid,
           providerRoot: entry.rootsByProvider[role],
         }));
 
@@ -1012,9 +1013,15 @@ export function App() {
                   sp.files.map((f) => (
                     <div key={`${sp.id}-${f.cid}`} className="result-card compact-card" style={{ marginBottom: 8 }}>
                       <div className="sub-row">
-                        <span>CID</span>
+                        <span>Original CID</span>
                         <code>{shortId(f.cid, 14)}</code>
                       </div>
+                      {f.storedCid !== f.cid && (
+                        <div className="sub-row">
+                          <span>{roleName(sp.role)} stored CID</span>
+                          <code>{shortId(f.storedCid, 14)}</code>
+                        </div>
+                      )}
                       <div className="sub-row">
                         <span>Size</span>
                         <span>{formatBytes(blobSizeByContentRef.get(f.cid))}</span>

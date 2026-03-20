@@ -719,10 +719,24 @@ export class FlowerDaemon {
   }
 
   private getReplicaRegistry(): ReplicaRegistryEntry[] {
-    return [...this.replicaRootsByCid.entries()].map(([cid, roots]) => ({
-      cid,
-      rootsByProvider: Object.fromEntries([...roots.entries()]),
-    }));
+    return [...this.replicaRootsByCid.entries()].map(([cid, roots]) => {
+      const envelope = this.envelopeByCid.get(cid);
+      const storedCidByProvider: Partial<Record<ProviderRole, string>> = {};
+      if (envelope) {
+        (['provider', 'provider2', 'provider3'] as ProviderRole[]).forEach((role) => {
+          const wrap = envelope.wrapsByProvider[role];
+          if (wrap) {
+            storedCidByProvider[role] = `cid:${hashLeaf(wrap.wrappedDoCiphertext)}`;
+          }
+        });
+      }
+
+      return {
+        cid,
+        rootsByProvider: Object.fromEntries([...roots.entries()]),
+        storedCidByProvider,
+      };
+    });
   }
 
   private registerReplica(cid: string, role: ProviderRole): void {

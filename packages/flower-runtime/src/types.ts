@@ -267,6 +267,7 @@ export interface RuntimeBalanceView {
 export interface ReplicaRegistryEntry {
   cid: string;
   rootsByProvider: Record<string, string>;
+  storedCidByProvider?: Partial<Record<ProviderRole, string>>;
 }
 
 export interface RetrievedBlobView {

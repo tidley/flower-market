@@ -1028,7 +1028,8 @@ export function App() {
                 ) : (
                   sp.files.map((f) => (
                     <div key={f} className="sub-row">
-                      <span>{f}</span>
+                      <code>{shortId(f, 14)}</code>
+                      <span>{formatBytes(blobSizeByContentRef.get(f))}</span>
                     </div>
                   ))
                 )}

@@ -53,6 +53,25 @@ function estimateContentBytes(content: string, encoding?: 'utf8' | 'base64'): nu
   return new TextEncoder().encode(content).length;
 }
 
+function parseExcluded(entry: string): { responder: string; reason: string } {
+  const payoutPrefix = 'payout_failed:';
+  if (entry.startsWith(payoutPrefix)) {
+    const rest = entry.slice(payoutPrefix.length);
+    const idx = rest.indexOf(':');
+    if (idx >= 0) {
+      return { responder: rest.slice(0, idx), reason: `payout_failed (${rest.slice(idx + 1)})` };
+    }
+    return { responder: rest, reason: 'payout_failed' };
+  }
+
+  const idx = entry.indexOf(':');
+  if (idx >= 0) {
+    return { responder: entry.slice(0, idx), reason: entry.slice(idx + 1) };
+  }
+
+  return { responder: entry, reason: 'excluded' };
+}
+
 function roleLabel(role: 'provider' | 'provider2' | 'provider3'): string {
   if (role === 'provider') return 'SP1';
   if (role === 'provider2') return 'SP2';
@@ -1000,9 +1019,18 @@ export function App() {
                 );
               })}
               {(latestRound.settlement.payload.excluded ?? []).length > 0 && (
-                <p className="muted">
-                  Excluded: {(latestRound.settlement.payload.excluded ?? []).join(', ')}
-                </p>
+                <div style={{ marginTop: 8 }}>
+                  <p className="muted" style={{ marginBottom: 6 }}>Excluded responders:</p>
+                  {(latestRound.settlement.payload.excluded ?? []).map((entry) => {
+                    const parsed = parseExcluded(entry);
+                    return (
+                      <div key={`excluded-${entry}`} className="sub-row">
+                        <code>{shortId(parsed.responder, 14)}</code>
+                        <span className="muted">{parsed.reason}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}

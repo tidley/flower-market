@@ -1,6 +1,7 @@
 import {
   buildSettlementEnvelope,
   settleChallengeFromProofs,
+  verifyMerkleProof,
   verifyTransferProof,
 } from '../../flower-contextvm/src/index.ts';
 import type { PayoutAdapter } from '../../flower-payout/src/index.ts';
@@ -120,6 +121,7 @@ export async function settlePublishedChallenge(
       .concat(knownReveal ? [knownReveal] : []),
   );
 
+  const exclusionReasons: string[] = [];
   const materializedReveals = reveals
     .map((event) => {
       const commit = commits.find(
@@ -128,10 +130,27 @@ export async function settlePublishedChallenge(
           candidate.payload.responder === event.payload.responder,
       );
       if (!commit) {
+        exclusionReasons.push(`${event.payload.responder}:missing_commit`);
         return null;
       }
 
       if (!matchesCommit(commit.payload, event.payload.leafHash, event.payload.revealNonce)) {
+        exclusionReasons.push(`${event.payload.responder}:commit_mismatch`);
+        return null;
+      }
+
+      if (event.payload.commitTs > challenge.payload.commitDeadline || event.payload.revealTs > challenge.payload.revealDeadline) {
+        exclusionReasons.push(`${event.payload.responder}:outside_deadline`);
+        return null;
+      }
+
+      if (event.payload.expectedRoot !== challenge.payload.merkleRoot) {
+        exclusionReasons.push(`${event.payload.responder}:invalid_proof`);
+        return null;
+      }
+
+      if (!verifyMerkleProof(event.payload.leafHash, event.payload.proof, challenge.payload.merkleRoot)) {
+        exclusionReasons.push(`${event.payload.responder}:invalid_proof`);
         return null;
       }
 
@@ -221,7 +240,7 @@ export async function settlePublishedChallenge(
     inputHash: envelope.inputHash,
     outputHash: envelope.outputHash,
     winners,
-    excluded: [...settlementOutput.excluded, ...payoutFailures],
+    excluded: [...exclusionReasons, ...payoutFailures],
     payoutReceipts,
   };
 

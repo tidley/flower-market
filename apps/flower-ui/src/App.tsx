@@ -87,7 +87,9 @@ export function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [view, setView] = useState<DemoView>(parseView());
   const [autoMode, setAutoMode] = useState(false);
+  const [autoLibraryMode, setAutoLibraryMode] = useState(false);
   const autoTimer = useRef<number | null>(null);
+  const autoLibraryTimer = useRef<number | null>(null);
   const [challengeBlobId, setChallengeBlobId] = useState('');
   const [seedBlobId, setSeedBlobId] = useState('demo_blob');
   const [seedBlobContent, setSeedBlobContent] = useState('flower market demo payload');
@@ -161,6 +163,34 @@ export function App() {
       autoTimer.current = null;
     };
   }, [autoMode, challengeBlobId, rewardSchedule]);
+
+  useEffect(() => {
+    if (!autoLibraryMode) {
+      if (autoLibraryTimer.current) window.clearInterval(autoLibraryTimer.current);
+      autoLibraryTimer.current = null;
+      return;
+    }
+
+    autoLibraryTimer.current = window.setInterval(() => {
+      if (snapshot.blobs.length === 0) return;
+      const randomBlob = snapshot.blobs[Math.floor(Math.random() * snapshot.blobs.length)];
+      if (!randomBlob) return;
+      void run('auto library challenge', async () => {
+        await createChallenge({
+          blobId: randomBlob.blobId,
+          payoutSchedule: rewardSchedule,
+          reliabilityBonusMsats: 1000,
+          commitLeadSeconds: 20,
+          revealLeadSeconds: 40,
+        });
+      });
+    }, 30_000);
+
+    return () => {
+      if (autoLibraryTimer.current) window.clearInterval(autoLibraryTimer.current);
+      autoLibraryTimer.current = null;
+    };
+  }, [autoLibraryMode, snapshot.blobs, rewardSchedule]);
 
   async function run(label: string, task: () => Promise<unknown>) {
     setBusy(label);
@@ -631,6 +661,7 @@ export function App() {
             ))}
           </select>
 
+          <h3 style={{ marginTop: 12 }}>Challenge rewards (sats)</h3>
           <div className="dual" style={{ marginTop: 8 }}>
             <div>
               <label>Rank #1 sats</label>
@@ -684,8 +715,23 @@ export function App() {
             >
               Post Challenge Now
             </button>
-            <button onClick={() => setAutoMode((v) => !v)} disabled={!challengeBlobId}>
+            <button
+              onClick={() => {
+                setAutoLibraryMode(false);
+                setAutoMode((v) => !v);
+              }}
+              disabled={!challengeBlobId}
+            >
               {autoMode ? 'Stop 30s Auto Challenges' : 'Start 30s Auto Challenges'}
+            </button>
+            <button
+              onClick={() => {
+                setAutoMode(false);
+                setAutoLibraryMode((v) => !v);
+              }}
+              disabled={snapshot.blobs.length === 0}
+            >
+              {autoLibraryMode ? 'Stop 30s Auto Challenges (Library)' : 'Start 30s Auto Challenges (Library Random)'}
             </button>
           </div>
 

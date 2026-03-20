@@ -125,6 +125,7 @@ export function App() {
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
   const [stallFeeSats, setStallFeeSats] = useState(1);
   const [rewardSchedule, setRewardSchedule] = useState<[number, number, number]>([15, 12, 9]);
+  const [reliabilityBonusMsats, setReliabilityBonusMsats] = useState(1000);
   const [retrievedBlob, setRetrievedBlob] = useState<RetrievedBlobView | null>(null);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
 
@@ -170,7 +171,7 @@ export function App() {
         await createChallenge({
           blobId: challengeBlobId,
           payoutSchedule: rewardSchedule,
-          reliabilityBonusMsats: 1000,
+          reliabilityBonusMsats,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
         });
@@ -181,7 +182,7 @@ export function App() {
       if (autoTimer.current) window.clearInterval(autoTimer.current);
       autoTimer.current = null;
     };
-  }, [autoMode, challengeBlobId, rewardSchedule]);
+  }, [autoMode, challengeBlobId, rewardSchedule, reliabilityBonusMsats]);
 
   useEffect(() => {
     if (!autoLibraryMode) {
@@ -198,7 +199,7 @@ export function App() {
         await createChallenge({
           blobId: randomBlob.blobId,
           payoutSchedule: rewardSchedule,
-          reliabilityBonusMsats: 1000,
+          reliabilityBonusMsats,
           commitLeadSeconds: 20,
           revealLeadSeconds: 40,
         });
@@ -209,7 +210,7 @@ export function App() {
       if (autoLibraryTimer.current) window.clearInterval(autoLibraryTimer.current);
       autoLibraryTimer.current = null;
     };
-  }, [autoLibraryMode, snapshot.blobs, rewardSchedule]);
+  }, [autoLibraryMode, snapshot.blobs, rewardSchedule, reliabilityBonusMsats]);
 
   async function run(label: string, task: () => Promise<unknown>) {
     setBusy(label);
@@ -717,6 +718,16 @@ export function App() {
             </div>
           </div>
 
+          <div style={{ marginTop: 8, maxWidth: 260 }}>
+            <label>Reliability bonus (msat)</label>
+            <input
+              type="number"
+              min={0}
+              value={reliabilityBonusMsats}
+              onChange={(event) => setReliabilityBonusMsats(Math.max(0, Number(event.target.value)))}
+            />
+          </div>
+
           <div className="dual" style={{ marginTop: 12 }}>
             <button
               onClick={() =>
@@ -724,7 +735,7 @@ export function App() {
                   createChallenge({
                     blobId: challengeBlobId,
                     payoutSchedule: rewardSchedule,
-                    reliabilityBonusMsats: 1000,
+                    reliabilityBonusMsats,
                     commitLeadSeconds: 20,
                     revealLeadSeconds: 40,
                   }),
@@ -781,7 +792,7 @@ export function App() {
                     await createChallenge({
                       blobId: challengeBlobId || seedBlobId,
                       payoutSchedule: rewardSchedule,
-                      reliabilityBonusMsats: 1000,
+                      reliabilityBonusMsats,
                       commitLeadSeconds: 20,
                       revealLeadSeconds: 40,
                       autoRespondProviders: true,

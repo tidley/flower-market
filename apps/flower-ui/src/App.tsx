@@ -348,7 +348,10 @@ export function App() {
     const filesForRole = (role: 'provider' | 'provider2' | 'provider3') =>
       snapshot.replicaRegistry
         .filter((entry) => Boolean(entry.rootsByProvider[role]))
-        .map((entry) => entry.cid);
+        .map((entry) => ({
+          cid: entry.cid,
+          providerRoot: entry.rootsByProvider[role],
+        }));
 
     return [
       {
@@ -1027,9 +1030,19 @@ export function App() {
                   <p className="muted">No tracked files yet.</p>
                 ) : (
                   sp.files.map((f) => (
-                    <div key={f} className="sub-row">
-                      <code>{shortId(f, 14)}</code>
-                      <span>{formatBytes(blobSizeByContentRef.get(f))}</span>
+                    <div key={`${sp.id}-${f.cid}`} className="result-card compact-card" style={{ marginBottom: 8 }}>
+                      <div className="sub-row">
+                        <span>CID</span>
+                        <code>{shortId(f.cid, 14)}</code>
+                      </div>
+                      <div className="sub-row">
+                        <span>Size</span>
+                        <span>{formatBytes(blobSizeByContentRef.get(f.cid))}</span>
+                      </div>
+                      <div className="sub-row">
+                        <span>{roleName(sp.role)} root</span>
+                        <code>{shortId(f.providerRoot, 14)}</code>
+                      </div>
                     </div>
                   ))
                 )}

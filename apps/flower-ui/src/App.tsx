@@ -314,7 +314,7 @@ export function App() {
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
     const stall = toRow('settler');
 
-    const maxBalance = Math.max(0, owner?.balance ?? 0, ...providers.map((row) => row.balance));
+    const maxBalance = Math.max(0, owner?.balance ?? 0, stall?.balance ?? 0, ...providers.map((row) => row.balance));
 
     return {
       owner,
@@ -498,9 +498,18 @@ export function App() {
             <span className="participant">{balanceView.stall.label}</span>
             <span className="balance-num">{balanceView.stall.balance}</span>
             <span className="bar-cell">
-              <span className="bar-track" />
+              <span className="bar-track">
+                <span
+                  className="bar-fill"
+                  style={{ width: `${balanceView.maxBalance > 0 ? (balanceView.stall.balance / balanceView.maxBalance) * 100 : 0}%` }}
+                />
+              </span>
             </span>
-            <span className="activity">—</span>
+            <span className="activity">
+              {balanceView.stall.activity.funded === 0 && balanceView.stall.activity.in === 0 && balanceView.stall.activity.out === 0
+                ? '—'
+                : `F${balanceView.stall.activity.funded} I${balanceView.stall.activity.in} O${balanceView.stall.activity.out}`}
+            </span>
           </div>
         )}
       </section>

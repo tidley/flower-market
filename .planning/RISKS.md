@@ -11,3 +11,9 @@
 
 4. **Sybil responders dominating rewards**
    - Mitigation: future stake/reputation and anti-sybil constraints
+
+5. **Autonomy loop double-firing on restart**
+   - Mitigation: checkpointed response records + in-flight dedupe + replay-safe idempotency checks
+
+6. **Checkpoint corruption or stale cursor state**
+   - Mitigation: versioned JSON checkpoint with load fallback and explicit status visibility

@@ -324,3 +324,48 @@ export interface RuntimeSnapshot {
   replicaRegistry: ReplicaRegistryEntry[];
   peerTransfers: PublishedFlowerEvent<PeerTransferEventPayload>[];
 }
+
+export interface AutonomousResponderCursor {
+  lastProcessedChallengeCreatedAt: number;
+}
+
+export interface AutonomousResponderRecord {
+  challengeId: string;
+  providerRole: ProviderRole;
+  revealNonce: string;
+  status: 'pending' | 'complete';
+  createdAt: number;
+  updatedAt: number;
+  commitEventId?: string;
+  revealEventId?: string;
+  notePublishedAt?: number;
+  lastError?: string;
+}
+
+export interface AutonomousResponderCheckpoint {
+  version: 1;
+  cursor: AutonomousResponderCursor;
+  lastRunAt?: number;
+  lastPendingCount?: number;
+  records: Record<string, AutonomousResponderRecord>;
+}
+
+export interface AutonomousResponderStatus {
+  enabled: boolean;
+  running: boolean;
+  pendingCount: number;
+  lastRunAt: number | null;
+  lastSuccessfulRunAt: number | null;
+  cursor: AutonomousResponderCursor;
+  checkpointPath: string | null;
+  lastError: string | null;
+}
+
+export interface RuntimeStatus {
+  uptimeMs: number;
+  startedAtSec: number;
+  relayMode: 'memory' | 'nostr';
+  relayUrls: string[];
+  blossomBaseUrl: string;
+  autonomousResponder: AutonomousResponderStatus;
+}

@@ -31,6 +31,8 @@ export type {
   ProviderWrapSourceRole,
   RuntimeIdentityView,
   RuntimeBalanceView,
+  RuntimeStatus,
+  AutonomousResponderStatus,
   RuntimeSnapshot,
   RuntimeSigner,
   SettlementEventPayload,

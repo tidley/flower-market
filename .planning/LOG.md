@@ -39,3 +39,10 @@
 - Added challenger/SP payout receipt panels and demo runbook at `demo/DEMO-RUNBOOK.md`.
 - Added challenger quick-seed blob action and bulk `SP1+SP2 Respond All Open` action.
 - Added deterministic demo timeline script: `demo/run-demo-timeline.mjs`.
+
+## 2026-03-21
+- Added a file-backed autonomy checkpoint store in `packages/flower-runtime`.
+- Added a background autonomous SP responder loop with jittered dispatch and replay-safe response tracking.
+- Added runtime status exposure for loop health, cursor, pending count, and checkpoint path.
+- Added regression tests for autonomous response, duplicate suppression, and restart recovery.
+- Added `/api/status` health visibility for the runtime daemon.

@@ -128,6 +128,14 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     httpPort: process.env.FLOWER_HTTP_PORT ? Number(process.env.FLOWER_HTTP_PORT) : 8787,
     blossomPort: process.env.FLOWER_BLOSSOM_PORT ? Number(process.env.FLOWER_BLOSSOM_PORT) : 0,
     syncIntervalMs: process.env.FLOWER_SYNC_INTERVAL_MS ? Number(process.env.FLOWER_SYNC_INTERVAL_MS) : 2000,
+    autonomousResponderEnabled: process.env.FLOWER_AUTONOMY_RESPONDER === 'true',
+    autonomousResponderIntervalMs: process.env.FLOWER_AUTONOMY_RESPONDER_INTERVAL_MS
+      ? Number(process.env.FLOWER_AUTONOMY_RESPONDER_INTERVAL_MS)
+      : 4000,
+    autonomousResponderJitterMs: process.env.FLOWER_AUTONOMY_RESPONDER_JITTER_MS
+      ? Number(process.env.FLOWER_AUTONOMY_RESPONDER_JITTER_MS)
+      : 1250,
+    autonomousCheckpointPath: process.env.FLOWER_AUTONOMY_CHECKPOINT_FILE,
     ownerSecretKeyHex: process.env.FLOWER_OWNER_SK,
     providerSecretKeyHex: process.env.FLOWER_PROVIDER_SK,
     provider2SecretKeyHex: process.env.FLOWER_PROVIDER2_SK,
@@ -158,6 +166,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
         relayUrls: handle.daemon.relayUrls,
         payoutMode,
         ignoreRelayHistory: process.env.FLOWER_IGNORE_RELAY_HISTORY !== 'false',
+        status: await handle.daemon.getStatus(),
       },
       null,
       2,

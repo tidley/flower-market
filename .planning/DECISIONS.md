@@ -24,3 +24,7 @@
 ## 2026-03-17 — Provider-bound encrypted replicas
 - **Decision:** Use provider-specific encrypted datasets and per-provider Merkle roots for challenge verification.
 - **Why:** Prevents cross-provider proof replay where one SP pretends to be multiple SP identities using shared plaintext challenge material.
+
+## 2026-03-21 — File-backed autonomy checkpoint with idempotent response records
+- **Decision:** Persist autonomous responder progress as a versioned local JSON checkpoint keyed by `challengeId + providerRole`.
+- **Why:** It gives the daemon enough state to resume safely after restart without duplicating commit/reveal side effects.

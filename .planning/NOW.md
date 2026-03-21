@@ -2,24 +2,14 @@
 
 ## In progress
 
-1. **Implementation roadmap checkpoint**
-   - map next code modules (payout adapter + relay event ingestion)
+1. **Autonomy phase 1**
+   - autonomous SP response loop in `flower-runtime`
+   - file-backed replay checkpoint for restart safety
+   - runtime health/status exposure for loop visibility
 
-2. **Demo scenario doc**
-   - one complete end-to-end walkthrough from challenge to settlement + marketplace transfer
+2. **Demo stabilization**
+   - keep the existing manual challenge path working alongside autonomy
+   - validate UI build still passes after runtime API changes
 
-3. **UI wiring phase**
-   - connect scaffolded UI to live relay events and runtime adapters
-
-4. **Multi-window demo stabilization**
-   - validate `?view=challenger`, `?view=sp1`, `?view=sp2` flows
-   - ensure 30s challenge loop is reliable for demo sessions
-
-5. **Payout + scoring spec alignment**
-   - lock reputationScore formula in fixtures/tests
-   - implement ecash payout adapter interface for demo payouts ✅
-
-6. **Demo polish pass**
-   - expose payout receipts in challenger/SP windows ✅
-   - add quick seed blob + bulk SP response actions ✅
-   - validate full runbook steps end-to-end (in progress)
+3. **Implementation roadmap checkpoint**
+   - map next code modules after autonomy phase 1 lands cleanly

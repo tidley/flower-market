@@ -41,6 +41,10 @@ async function dispatchDaemonRequest(daemon: FlowerDaemon, request: DaemonApiReq
       return jsonResponse(200, await daemon.getSnapshot());
     }
 
+    if (request.method === 'GET' && request.pathname === '/api/status') {
+      return jsonResponse(200, await daemon.getStatus());
+    }
+
     if (request.method === 'GET' && request.pathname === '/api/events') {
       return jsonResponse(200, await daemon.getEvents());
     }

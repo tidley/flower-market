@@ -25,6 +25,29 @@ describe('startFlowerDaemonServer', () => {
     expect(state.blobs).toHaveLength(0);
   });
 
+  it('exposes autonomous responder health through the status endpoint', async () => {
+    const handle = await startFlowerDaemonServer({
+      httpPort: 0,
+      syncIntervalMs: 50,
+      autonomousResponderEnabled: true,
+      autonomousResponderIntervalMs: 50,
+      autonomousCheckpointPath: '/tmp/flower-runtime-status-checkpoint.json',
+    });
+    cleanup.push(() => handle.close());
+
+    const status = await handle.request('/api/status').then((response) =>
+      response.json() as Promise<{
+        autonomousResponder: { enabled: boolean; running: boolean; pendingCount: number; checkpointPath: string | null };
+        relayMode: string;
+      }>,
+    );
+
+    expect(status.autonomousResponder.enabled).toBe(true);
+    expect(status.autonomousResponder.running).toBe(false);
+    expect(status.autonomousResponder.pendingCount).toBeGreaterThanOrEqual(0);
+    expect(status.autonomousResponder.checkpointPath ?? '').toContain('flower-runtime-status-checkpoint.json');
+  });
+
   it('deduplicates seed blob uploads by CID and returns a duplicate notice', async () => {
     const handle = await startFlowerDaemonServer({ httpPort: 0, syncIntervalMs: 50 });
     cleanup.push(() => handle.close());

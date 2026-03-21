@@ -5,6 +5,11 @@ import { createBlossomFixture, DummyBlossomServer, fetchBlossomObject } from './
 import { buildCommitHash, createRuntimeSigner, randomId } from './crypto.ts';
 import { buildBlobEnvelope, decryptBlobEnvelope, rewrapBlobEnvelope } from './envelope.ts';
 import { NwcPayoutAdapter } from './nwcPayout.ts';
+import {
+  AutonomousCheckpointStore,
+  createEmptyAutonomyCheckpoint,
+  responseKey,
+} from './autonomy.ts';
 import { MemoryRelayTransport, NostrRelayTransport } from './relay.ts';
 import { buildChallengeViews, buildMarketplaceViews, parseRuntimeEvents } from './snapshot.ts';
 import { settlePublishedChallenge } from './runtime.ts';
@@ -23,10 +28,15 @@ import type {
   RuntimeIdentityView,
   RuntimeSigner,
   RuntimeSnapshot,
+  RuntimeStatus,
   RevealEventPayload,
   ReplicaRegistryEntry,
   SettlementEventPayload,
   RetrievedBlobView,
+  AutonomousResponderCheckpoint,
+  AutonomousResponderRecord,
+  AutonomousResponderStatus,
+  AutonomousResponderCursor,
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
 
@@ -35,6 +45,10 @@ export interface FlowerDaemonConfig {
   relayUrls?: string[];
   forceKind1?: boolean;
   syncIntervalMs?: number;
+  autonomousResponderEnabled?: boolean;
+  autonomousResponderIntervalMs?: number;
+  autonomousResponderJitterMs?: number;
+  autonomousCheckpointPath?: string;
   httpPort?: number;
   blossomPort?: number;
   ownerSecretKeyHex?: string;
@@ -52,6 +66,7 @@ export interface FlowerDaemonConfig {
   nwcBalancePollIntervalMs?: number;
   nwcBalancePollSpacingMs?: number;
   ignoreRelayHistory?: boolean;
+  transport?: RelayTransport;
 }
 
 function roleName(role: ProviderRole): string {
@@ -91,9 +106,25 @@ export class FlowerDaemon {
 
   private blossom: DummyBlossomServer;
   private transport: RelayTransport;
+  private ownsTransport = true;
   private payoutAdapter: PayoutAdapter;
   private blossomBaseUrl = '';
   private syncIntervalMs: number;
+  private autonomousResponderEnabled = false;
+  private autonomousResponderIntervalMs = 4_000;
+  private autonomousResponderJitterMs = 1_250;
+  private autonomousResponderTimer: NodeJS.Timeout | null = null;
+  private autonomousResponderRunning = false;
+  private autonomousResponderPendingCount = 0;
+  private autonomousResponderLastRunAt = 0;
+  private autonomousResponderLastSuccessfulRunAt = 0;
+  private autonomousResponderLastError: string | null = null;
+  private autonomousResponderCursor: AutonomousResponderCursor = { lastProcessedChallengeCreatedAt: 0 };
+  private autonomousResponderInstanceSalt = randomId('auto');
+  private autonomousCheckpointStore: AutonomousCheckpointStore;
+  private autonomousCheckpoint: AutonomousResponderCheckpoint = createEmptyAutonomyCheckpoint();
+  private autonomousResponseRecords = new Map<string, AutonomousResponderRecord>();
+  private autonomousResponseInFlight = new Map<string, Promise<{ commit: PublishedFlowerEvent<CommitEventPayload>; reveal: PublishedFlowerEvent<RevealEventPayload> }>>();
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private publishedMessages: PublishedMessage[] = [];
@@ -117,7 +148,6 @@ export class FlowerDaemon {
   private sessionChallengeIds = new Set<string>();
   private sessionListingIds = new Set<string>();
   private sessionPeerTransferIds = new Set<string>();
-  private challengesPendingAutoResponse = new Set<string>();
 
   constructor(config: FlowerDaemonConfig = {}) {
     this.owner = createRuntimeSigner(config.ownerSecretKeyHex);
@@ -127,7 +157,8 @@ export class FlowerDaemon {
     this.settler = createRuntimeSigner(config.settlerSecretKeyHex);
     this.relayUrls = config.relayUrls ?? [];
     this.relayMode = this.relayUrls.length > 0 ? 'nostr' : 'memory';
-    this.transport = this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls, 1500, config.forceKind1 ?? true) : new MemoryRelayTransport();
+    this.transport = config.transport ?? (this.relayMode === 'nostr' ? new NostrRelayTransport(this.relayUrls, 1500, config.forceKind1 ?? true) : new MemoryRelayTransport());
+    this.ownsTransport = !config.transport;
 
     if (
       config.payoutMode === 'lightning' &&
@@ -154,6 +185,15 @@ export class FlowerDaemon {
     }
     this.blossom = new DummyBlossomServer();
     this.syncIntervalMs = config.syncIntervalMs ?? 2_000;
+    this.autonomousResponderEnabled = config.autonomousResponderEnabled ?? false;
+    this.autonomousResponderIntervalMs = Math.max(10, config.autonomousResponderIntervalMs ?? 4_000);
+    this.autonomousResponderJitterMs = Math.max(0, config.autonomousResponderJitterMs ?? 1_250);
+    const autonomousCheckpointPath =
+      config.autonomousCheckpointPath ??
+      (this.autonomousResponderEnabled ? `${process.cwd()}/.flower-runtime/autonomy-checkpoint.json` : null);
+    this.autonomousCheckpointStore = new AutonomousCheckpointStore(
+      autonomousCheckpointPath,
+    );
     this.nwcBalancePolling = config.nwcBalancePolling ?? true;
     this.nwcBalancePollIntervalMs = Math.max(15_000, config.nwcBalancePollIntervalMs ?? 90_000);
     this.ignoreRelayHistory = config.ignoreRelayHistory ?? false;
@@ -169,6 +209,7 @@ export class FlowerDaemon {
 
     await this.blossom.start(blossomPort);
     this.blossomBaseUrl = this.blossom.getBaseUrl();
+    await this.loadAutonomousCheckpoint();
     await this.tick();
     this.timer = setInterval(() => {
       this.tick().catch((error) => {
@@ -176,6 +217,23 @@ export class FlowerDaemon {
         this.logRateLimited(`tick:${message}`, 'flower-runtime tick failed', error);
       });
     }, this.syncIntervalMs);
+
+    if (this.autonomousResponderEnabled) {
+      try {
+        await this.runAutonomousResponderLoop();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.autonomousResponderLastError = message;
+        this.logRateLimited(`autonomous:${message}`, 'flower-runtime autonomous responder failed', error);
+      }
+      this.autonomousResponderTimer = setInterval(() => {
+        this.runAutonomousResponderLoop().catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.autonomousResponderLastError = message;
+          this.logRateLimited(`autonomous:${message}`, 'flower-runtime autonomous responder failed', error);
+        });
+      }, this.autonomousResponderIntervalMs);
+    }
   }
 
   async stop(): Promise<void> {
@@ -183,8 +241,14 @@ export class FlowerDaemon {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.autonomousResponderTimer) {
+      clearInterval(this.autonomousResponderTimer);
+      this.autonomousResponderTimer = null;
+    }
 
-    await this.transport.close();
+    if (this.ownsTransport) {
+      await this.transport.close();
+    }
     if ('close' in this.payoutAdapter && typeof this.payoutAdapter.close === 'function') {
       await this.payoutAdapter.close();
     }
@@ -211,6 +275,17 @@ export class FlowerDaemon {
     } finally {
       this.ticking = false;
     }
+  }
+
+  async getStatus(): Promise<RuntimeStatus> {
+    return {
+      uptimeMs: Date.now() - this.startedAtSec * 1000,
+      startedAtSec: this.startedAtSec,
+      relayMode: this.relayMode,
+      relayUrls: this.relayUrls,
+      blossomBaseUrl: this.blossomBaseUrl,
+      autonomousResponder: this.getAutonomousResponderStatus(),
+    };
   }
 
   async getEvents(filter: RelayFilter = {}): Promise<PublishedFlowerEvent[]> {
@@ -243,6 +318,159 @@ export class FlowerDaemon {
 
   getPublishedMessages(): PublishedMessage[] {
     return this.publishedMessages.slice().sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  private getAutonomousResponderStatus(): AutonomousResponderStatus {
+    return {
+      enabled: this.autonomousResponderEnabled,
+      running: this.autonomousResponderRunning,
+      pendingCount: this.autonomousResponderPendingCount,
+      lastRunAt: this.autonomousResponderLastRunAt || null,
+      lastSuccessfulRunAt: this.autonomousResponderLastSuccessfulRunAt || null,
+      cursor: this.autonomousResponderCursor,
+      checkpointPath: this.autonomousCheckpointStore.path,
+      lastError: this.autonomousResponderLastError,
+    };
+  }
+
+  private async loadAutonomousCheckpoint(): Promise<void> {
+    this.autonomousCheckpoint = await this.autonomousCheckpointStore.load();
+    this.autonomousResponderCursor = this.autonomousCheckpoint.cursor;
+    this.autonomousResponderPendingCount = this.autonomousCheckpoint.lastPendingCount ?? 0;
+    this.autonomousResponderLastRunAt = this.autonomousCheckpoint.lastRunAt ?? 0;
+    this.autonomousResponseRecords = new Map(
+      Object.entries(this.autonomousCheckpoint.records).map(([key, record]) => [key, { ...record }]),
+    );
+  }
+
+  private async saveAutonomousCheckpoint(): Promise<void> {
+    this.autonomousCheckpoint = {
+      version: 1,
+      cursor: this.autonomousResponderCursor,
+      lastRunAt: this.autonomousResponderLastRunAt || undefined,
+      lastPendingCount: this.autonomousResponderPendingCount,
+      records: Object.fromEntries(this.autonomousResponseRecords.entries()),
+    };
+    await this.autonomousCheckpointStore.save(this.autonomousCheckpoint);
+  }
+
+  private async markAutonomousRecord(
+    key: string,
+    patch: Partial<AutonomousResponderRecord> & Pick<AutonomousResponderRecord, 'challengeId' | 'providerRole' | 'revealNonce'>,
+  ): Promise<AutonomousResponderRecord> {
+    const existing = this.autonomousResponseRecords.get(key);
+    const next: AutonomousResponderRecord = {
+      challengeId: patch.challengeId,
+      providerRole: patch.providerRole,
+      revealNonce: patch.revealNonce,
+      status: patch.status ?? existing?.status ?? 'pending',
+      createdAt: existing?.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
+      commitEventId: patch.commitEventId ?? existing?.commitEventId,
+      revealEventId: patch.revealEventId ?? existing?.revealEventId,
+      notePublishedAt: patch.notePublishedAt ?? existing?.notePublishedAt,
+      lastError: patch.lastError ?? existing?.lastError,
+    };
+    this.autonomousResponseRecords.set(key, next);
+    await this.saveAutonomousCheckpoint();
+    return next;
+  }
+
+  private async runAutonomousResponderLoop(): Promise<void> {
+    if (!this.autonomousResponderEnabled || this.autonomousResponderRunning) {
+      return;
+    }
+
+    this.autonomousResponderRunning = true;
+    this.autonomousResponderLastError = null;
+    this.autonomousResponderLastRunAt = Date.now();
+
+    try {
+      const snapshot = await this.getSnapshot();
+      const tasks: Array<{ challenge: PublishedFlowerEvent<ChallengeEventPayload>; providerRole: ProviderRole }> = [];
+      let maxCreatedAt = this.autonomousResponderCursor.lastProcessedChallengeCreatedAt;
+
+      for (const challengeView of snapshot.challenges) {
+        maxCreatedAt = Math.max(maxCreatedAt, challengeView.challenge.createdAt);
+        if (challengeView.settlement) {
+          continue;
+        }
+
+        for (const providerRole of ['provider', 'provider2', 'provider3'] as const) {
+          if (!this.inventoryByRole.get(providerRole)?.has(challengeView.challenge.payload.contentRef)) {
+            continue;
+          }
+
+          const key = responseKey(challengeView.challenge.payload.challengeId, providerRole);
+          const record = this.autonomousResponseRecords.get(key);
+          if (record?.status === 'complete' && record.commitEventId && record.revealEventId) {
+            continue;
+          }
+
+          tasks.push({ challenge: challengeView.challenge, providerRole });
+        }
+      }
+
+      this.autonomousResponderPendingCount = tasks.length;
+      this.autonomousResponderCursor = { lastProcessedChallengeCreatedAt: maxCreatedAt };
+      await this.saveAutonomousCheckpoint();
+
+      const orderedTasks = tasks.sort((left, right) => {
+        if (left.challenge.createdAt !== right.challenge.createdAt) {
+          return left.challenge.createdAt - right.challenge.createdAt;
+        }
+        return this.providerRoleRank(left.providerRole) - this.providerRoleRank(right.providerRole);
+      });
+
+      for (const task of orderedTasks) {
+        const jitterMs = this.autonomousResponderJitterMs > 0
+          ? this.calculateAutonomousResponderJitter(task.challenge.payload.challengeId, task.providerRole)
+          : 0;
+        if (jitterMs > 0) {
+          await sleep(jitterMs);
+        }
+
+        try {
+          await this.respondToChallenge(task.challenge.payload.challengeId, task.providerRole);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const key = responseKey(task.challenge.payload.challengeId, task.providerRole);
+          const existing = this.autonomousResponseRecords.get(key);
+          if (existing) {
+            existing.lastError = message;
+            existing.updatedAt = Date.now();
+            this.autonomousResponseRecords.set(key, existing);
+            await this.saveAutonomousCheckpoint();
+          }
+          this.autonomousResponderLastError = message;
+          if (!message.includes('does not host')) {
+            throw error;
+          }
+        }
+      }
+
+      this.autonomousResponderPendingCount = 0;
+      this.autonomousResponderLastSuccessfulRunAt = Date.now();
+      this.autonomousResponderLastError = null;
+      await this.saveAutonomousCheckpoint();
+    } finally {
+      this.autonomousResponderRunning = false;
+    }
+  }
+
+  private providerRoleRank(role: ProviderRole): number {
+    if (role === 'provider2') return 1;
+    if (role === 'provider3') return 2;
+    return 0;
+  }
+
+  private calculateAutonomousResponderJitter(challengeId: string, providerRole: ProviderRole): number {
+    const seedText = `${this.autonomousResponderInstanceSalt}:${challengeId}:${providerRole}`;
+    let seed = 0;
+    for (let index = 0; index < seedText.length; index += 1) {
+      seed = (seed * 31 + seedText.charCodeAt(index)) >>> 0;
+    }
+    return 200 + (seed % this.autonomousResponderJitterMs);
   }
 
   addFunding(role: RuntimeIdentityView['role'], sats: number): void {
@@ -325,86 +553,212 @@ export class FlowerDaemon {
       const start = seed % roles.length;
       const ordered = [...roles.slice(start), ...roles.slice(0, start)];
 
-      this.challengesPendingAutoResponse.add(event.payload.challengeId);
-      try {
-        for (let i = 0; i < ordered.length; i += 1) {
-          const role = ordered[i];
-          try {
-            const response = await this.respondToChallenge(event.payload.challengeId, role);
-            await this.publishProofReplyNote(event, challengeNoteId, role, response.reveal, response.commit);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (!message.includes('does not host')) {
-              throw error;
-            }
-          }
-          if (i < ordered.length - 1) {
-            await sleep(250 + i * 250);
+      for (let i = 0; i < ordered.length; i += 1) {
+        const role = ordered[i];
+        try {
+          await this.respondToChallenge(event.payload.challengeId, role, {
+            publishProofReplyNote: true,
+            challengeNoteId,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('does not host')) {
+            throw error;
           }
         }
-      } finally {
-        this.challengesPendingAutoResponse.delete(event.payload.challengeId);
+        if (i < ordered.length - 1) {
+          await sleep(250 + i * 250);
+        }
       }
     }
 
     return event;
   }
 
-  async respondToChallenge(challengeId: string, providerRole: 'provider' | 'provider2' | 'provider3' = 'provider'): Promise<{
+  async respondToChallenge(
+    challengeId: string,
+    providerRole: ProviderRole = 'provider',
+    options: { publishProofReplyNote?: boolean; challengeNoteId?: string | null } = {},
+  ): Promise<{
     commit: PublishedFlowerEvent<CommitEventPayload>;
     reveal: PublishedFlowerEvent<RevealEventPayload>;
   }> {
-    const events = await this.listEvents({ challengeId });
-    const challenge = events.find(
-      (event): event is PublishedFlowerEvent<ChallengeEventPayload> => event.payload.type === 'challenge',
-    );
-    if (!challenge) {
-      throw new Error(`Unknown challenge ${challengeId}`);
+    const key = responseKey(challengeId, providerRole);
+    const inFlight = this.autonomousResponseInFlight.get(key);
+    if (inFlight) {
+      return inFlight;
     }
 
-    const blobId = this.resolveBlobIdFromContentRef(challenge.payload.contentRef);
-    const blob = await fetchBlossomObject(this.blossomBaseUrl, blobId);
-    const revealNonce = randomId('reveal');
-    const now = Math.floor(Date.now() / 1000);
-    const responderSigner = this.signerForRole(providerRole);
+    const work = (async () => {
+      const events = await this.listEvents({ challengeId });
+      const challenge = events.find(
+        (event): event is PublishedFlowerEvent<ChallengeEventPayload> => event.payload.type === 'challenge',
+      );
+      if (!challenge) {
+        throw new Error(`Unknown challenge ${challengeId}`);
+      }
 
-    if (!this.inventoryByRole.get(providerRole)?.has(blob.contentRef)) {
-      throw new Error(`${providerRole} does not host ${blob.contentRef}`);
+      const responderSigner = this.signerForRole(providerRole);
+      const existingRecord = this.autonomousResponseRecords.get(key);
+      const existingCommit = events.find(
+        (event): event is PublishedFlowerEvent<CommitEventPayload> =>
+          event.payload.type === 'commit' &&
+          event.payload.challengeId === challengeId &&
+          event.payload.responder === responderSigner.npub,
+      );
+      const existingReveal = events.find(
+        (event): event is PublishedFlowerEvent<RevealEventPayload> =>
+          event.payload.type === 'reveal' &&
+          event.payload.challengeId === challengeId &&
+          event.payload.responder === responderSigner.npub,
+      );
+
+      if (existingCommit && existingReveal) {
+        let record = existingRecord;
+        if (!record || record.status !== 'complete') {
+          record = await this.markAutonomousRecord(key, {
+            challengeId,
+            providerRole,
+            revealNonce: existingReveal.payload.revealNonce,
+            status: 'complete',
+            commitEventId: existingCommit.id,
+            revealEventId: existingReveal.id,
+            notePublishedAt: existingRecord?.notePublishedAt,
+          });
+        }
+
+        if (options.publishProofReplyNote && (!record.notePublishedAt || record.notePublishedAt === 0)) {
+          await this.publishProofReplyNote(challenge, options.challengeNoteId ?? null, providerRole, existingReveal, existingCommit);
+          await this.markAutonomousRecord(key, {
+            challengeId,
+            providerRole,
+            revealNonce: existingReveal.payload.revealNonce,
+            status: 'complete',
+            commitEventId: existingCommit.id,
+            revealEventId: existingReveal.id,
+            notePublishedAt: Date.now(),
+          });
+        }
+
+        return { commit: existingCommit, reveal: existingReveal };
+      }
+
+      const blobId = this.resolveBlobIdFromContentRef(challenge.payload.contentRef);
+      const blob = await fetchBlossomObject(this.blossomBaseUrl, blobId);
+      if (!this.inventoryByRole.get(providerRole)?.has(blob.contentRef)) {
+        throw new Error(`${providerRole} does not host ${blob.contentRef}`);
+      }
+
+      const challengedLeafIndex = challenge.payload.leafIndex;
+      const selectedLeaf = blob.leafProofs?.[challengedLeafIndex] ?? {
+        leafHash: blob.sampleLeafHash,
+        proof: blob.sampleProof,
+      };
+
+      const perfSeed = `${challengeId}:${providerRole}`;
+      const perfHash = [...perfSeed].reduce((acc, ch, idx) => ((acc * 33) ^ (ch.charCodeAt(0) + idx)) >>> 0, 5381);
+      const latencyMs = 45 + (perfHash % 85);
+      const reliabilityScore = Number((0.92 + ((perfHash >> 8) % 80) / 1000).toFixed(4));
+
+      const initialRecord =
+        existingRecord ??
+        (await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: randomId('reveal'),
+          status: 'pending',
+        }));
+      let record = initialRecord;
+
+      let commit = existingCommit;
+      if (!commit) {
+        const commitTs = Math.floor(Date.now() / 1000);
+        commit = await this.transport.publish(responderSigner, {
+          type: 'commit',
+          challengeId,
+          responder: responderSigner.npub,
+          commitHash: buildCommitHash(challengeId, responderSigner.npub, selectedLeaf.leafHash, record.revealNonce),
+          commitTs,
+        });
+        record = await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: record.revealNonce,
+          status: 'pending',
+          commitEventId: commit.id,
+        });
+      } else if (!record.commitEventId) {
+        record = await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: record.revealNonce,
+          status: 'pending',
+          commitEventId: commit.id,
+        });
+      }
+
+      if (!commit) {
+        throw new Error(`Missing commit for ${challengeId} / ${providerRole}`);
+      }
+
+      let reveal = existingReveal;
+      if (!reveal) {
+        reveal = await this.transport.publish(responderSigner, {
+          type: 'reveal',
+          challengeId,
+          responder: responderSigner.npub,
+          commitTs: commit.payload.commitTs,
+          revealTs: commit.payload.commitTs + 1,
+          latencyMs,
+          reliabilityScore,
+          leafHash: selectedLeaf.leafHash,
+          proof: selectedLeaf.proof,
+          expectedRoot: blob.merkleRoot,
+          revealNonce: record.revealNonce,
+        });
+        record = await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: record.revealNonce,
+          status: 'complete',
+          commitEventId: commit.id,
+          revealEventId: reveal.id,
+          notePublishedAt: record.notePublishedAt,
+        });
+      } else if (record.status !== 'complete') {
+        record = await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: record.revealNonce,
+          status: 'complete',
+          commitEventId: commit.id,
+          revealEventId: reveal.id,
+          notePublishedAt: record.notePublishedAt,
+        });
+      }
+
+      if (options.publishProofReplyNote && (!record.notePublishedAt || record.notePublishedAt === 0)) {
+        await this.publishProofReplyNote(challenge, options.challengeNoteId ?? null, providerRole, reveal, commit);
+        record = await this.markAutonomousRecord(key, {
+          challengeId,
+          providerRole,
+          revealNonce: record.revealNonce,
+          status: 'complete',
+          commitEventId: commit.id,
+          revealEventId: reveal.id,
+          notePublishedAt: Date.now(),
+        });
+      }
+
+      return { commit, reveal };
+    })();
+
+    this.autonomousResponseInFlight.set(key, work);
+    try {
+      return await work;
+    } finally {
+      this.autonomousResponseInFlight.delete(key);
     }
-    const challengedLeafIndex = challenge.payload.leafIndex;
-    const selectedLeaf = blob.leafProofs?.[challengedLeafIndex] ?? {
-      leafHash: blob.sampleLeafHash,
-      proof: blob.sampleProof,
-    };
-
-    const perfSeed = `${challengeId}:${providerRole}`;
-    const perfHash = [...perfSeed].reduce((acc, ch, idx) => ((acc * 33) ^ (ch.charCodeAt(0) + idx)) >>> 0, 5381);
-    const latencyMs = 45 + (perfHash % 85);
-    const reliabilityScore = Number((0.92 + ((perfHash >> 8) % 80) / 1000).toFixed(4));
-
-    const commit = await this.transport.publish(responderSigner, {
-      type: 'commit',
-      challengeId,
-      responder: responderSigner.npub,
-      commitHash: buildCommitHash(challengeId, responderSigner.npub, selectedLeaf.leafHash, revealNonce),
-      commitTs: now,
-    });
-
-    const reveal = await this.transport.publish(responderSigner, {
-      type: 'reveal',
-      challengeId,
-      responder: responderSigner.npub,
-      commitTs: now,
-      revealTs: now + 1,
-      latencyMs,
-      reliabilityScore,
-      leafHash: selectedLeaf.leafHash,
-      proof: selectedLeaf.proof,
-      expectedRoot: blob.merkleRoot,
-      revealNonce,
-    });
-
-    return { commit, reveal };
   }
 
   async publishListing(input: {
@@ -761,10 +1115,6 @@ export class FlowerDaemon {
       if (challengeView.settlement || challengeView.reveals.length === 0) {
         continue;
       }
-      if (this.challengesPendingAutoResponse.has(challengeView.challenge.payload.challengeId)) {
-        continue;
-      }
-
 
       try {
         const blob = await fetchBlossomObject(

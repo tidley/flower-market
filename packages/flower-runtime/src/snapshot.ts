@@ -8,6 +8,7 @@ import type {
   MarketSettlementEventPayload,
   MarketTransferProofEventPayload,
   MarketplaceRuntimeView,
+  PeerTransferEventPayload,
   PublishedFlowerEvent,
   RevealEventPayload,
   SettlementEventPayload,
@@ -23,6 +24,7 @@ export interface ParsedRuntimeEvents {
   accepts: PublishedFlowerEvent<MarketAcceptEventPayload>[];
   transferProofs: PublishedFlowerEvent<MarketTransferProofEventPayload>[];
   marketSettlements: PublishedFlowerEvent<MarketSettlementEventPayload>[];
+  peerTransfers: PublishedFlowerEvent<PeerTransferEventPayload>[];
 }
 
 export function parseRuntimeEvents(events: PublishedFlowerEvent[]): ParsedRuntimeEvents {
@@ -36,6 +38,7 @@ export function parseRuntimeEvents(events: PublishedFlowerEvent[]): ParsedRuntim
     accepts: events.filter(isType('market.accept')),
     transferProofs: events.filter(isType('market.transfer_proof')),
     marketSettlements: events.filter(isType('market.settlement')),
+    peerTransfers: events.filter(isType('peer.transfer')),
   };
 }
 

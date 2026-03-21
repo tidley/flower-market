@@ -22,6 +22,7 @@ export type {
   MarketTransferProofEventPayload,
   PublishedFlowerEvent,
   RelayFilter,
+  PeerTransferEventPayload,
   RetrievedBlossomObject,
   RetrievedBlobView,
   RevealEventPayload,

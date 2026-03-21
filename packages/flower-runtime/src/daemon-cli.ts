@@ -138,7 +138,7 @@ async function main(argv = process.argv.slice(2)): Promise<void> {
     providerNwcUri: process.env.FLOWER_SP1_NWC,
     provider2NwcUri: process.env.FLOWER_SP2_NWC,
     provider3NwcUri: process.env.FLOWER_SP3_NWC,
-    stallNwcUri: process.env.FLOWER_STALL_NWC,
+    settlementNwcUri: process.env.FLOWER_SETTLEMENT_NWC,
     nwcBalancePolling: process.env.FLOWER_NWC_BALANCE_POLL !== 'false',
     nwcBalancePollIntervalMs: process.env.FLOWER_NWC_BALANCE_POLL_INTERVAL_MS
       ? Number(process.env.FLOWER_NWC_BALANCE_POLL_INTERVAL_MS)

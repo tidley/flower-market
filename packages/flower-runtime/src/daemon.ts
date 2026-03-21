@@ -16,6 +16,7 @@ import type {
   MarketListingEventPayload,
   MarketOfferEventPayload,
   MarketTransferProofEventPayload,
+  PeerTransferEventPayload,
   PublishedFlowerEvent,
   RelayFilter,
   ProviderRole,
@@ -25,7 +26,6 @@ import type {
   RevealEventPayload,
   ReplicaRegistryEntry,
   SettlementEventPayload,
-  StallTransferReceipt,
   RetrievedBlobView,
 } from './types.ts';
 import type { RelayTransport } from './relay.ts';
@@ -47,7 +47,7 @@ export interface FlowerDaemonConfig {
   providerNwcUri?: string;
   provider2NwcUri?: string;
   provider3NwcUri?: string;
-  stallNwcUri?: string;
+  settlementNwcUri?: string;
   nwcBalancePolling?: boolean;
   nwcBalancePollIntervalMs?: number;
   nwcBalancePollSpacingMs?: number;
@@ -104,7 +104,6 @@ export class FlowerDaemon {
   private envelopeByCid = new Map<string, BlossomFixture['envelope']>();
   private cidToBlobId = new Map<string, string>();
   private inventoryByRole = new Map<ProviderRole, Set<string>>();
-  private stallTransfers: StallTransferReceipt[] = [];
   private liveNwcBalancesByNpub: Record<string, number> = {};
   private nwcBalancePollInFlight = false;
   private lastNwcBalancePollAt = 0;
@@ -117,6 +116,7 @@ export class FlowerDaemon {
   private startedAtSec = Math.floor(Date.now() / 1000);
   private sessionChallengeIds = new Set<string>();
   private sessionListingIds = new Set<string>();
+  private sessionPeerTransferIds = new Set<string>();
   private challengesPendingAutoResponse = new Set<string>();
 
   constructor(config: FlowerDaemonConfig = {}) {
@@ -143,7 +143,7 @@ export class FlowerDaemon {
           ...(config.provider3NwcUri ? { [this.provider3.npub]: { uri: config.provider3NwcUri } } : {}),
         },
         observersByNpub: {
-          ...(config.stallNwcUri ? { [this.settler.npub]: { uri: config.stallNwcUri } } : {}),
+          ...(config.settlementNwcUri ? { [this.settler.npub]: { uri: config.settlementNwcUri } } : {}),
         },
         balancePollSpacingMs: config.nwcBalancePollSpacingMs ?? 750,
       });
@@ -228,9 +228,11 @@ export class FlowerDaemon {
       const type = typeof payload.type === 'string' ? payload.type : undefined;
       const challengeId = typeof payload.challengeId === 'string' ? payload.challengeId : undefined;
       const listingId = typeof payload.listingId === 'string' ? payload.listingId : undefined;
+      const transferId = typeof payload.transferId === 'string' ? payload.transferId : undefined;
 
       if (challengeId) return this.sessionChallengeIds.has(challengeId);
       if (listingId) return this.sessionListingIds.has(listingId);
+      if (transferId) return this.sessionPeerTransferIds.has(transferId);
 
       if (type === 'challenge' || type === 'commit' || type === 'reveal' || type === 'settlement') return false;
       if (type?.startsWith('market.')) return false;
@@ -267,7 +269,7 @@ export class FlowerDaemon {
       challenges: buildChallengeViews(parsed),
       listings: buildMarketplaceViews(parsed),
       replicaRegistry: this.getReplicaRegistry(),
-      stallTransfers: this.stallTransfers.slice().sort((a, b) => b.createdAt - a.createdAt),
+      peerTransfers: parsed.peerTransfers.slice().sort((a, b) => b.createdAt - a.createdAt),
     };
   }
 
@@ -483,13 +485,13 @@ export class FlowerDaemon {
     });
   }
 
-  async requestTransferViaStall(input: {
+  async requestPeerTransfer(input: {
     blobId: string;
     fromRole: ProviderRole;
     toRole: ProviderRole;
     supplierFeeSats: number;
-    stallFeeSats: number;
-  }): Promise<StallTransferReceipt> {
+    transferFeeSats: number;
+  }): Promise<PublishedFlowerEvent<PeerTransferEventPayload>> {
     if (input.fromRole === input.toRole) {
       throw new Error('fromRole and toRole must differ');
     }
@@ -504,77 +506,133 @@ export class FlowerDaemon {
     const targetSigner = this.signerForRole(input.toRole);
     const envelope = this.getEnvelopeOrThrow(blob);
     const rewrappedEnvelope = rewrapBlobEnvelope(envelope, input.fromRole, input.toRole, sourceSigner, targetSigner, this.owner);
+    const sourceWrap = envelope.wrapsByProvider[input.fromRole];
+    if (!sourceWrap) {
+      throw new Error(`missing peer wrap for ${input.fromRole}`);
+    }
+    const targetWrap = rewrappedEnvelope.wrapsByProvider[input.toRole];
+    if (!targetWrap) {
+      throw new Error(`missing peer wrap for ${input.toRole}`);
+    }
     this.storeEnvelope(cid, rewrappedEnvelope);
     this.registerReplica(cid, input.toRole);
 
     const supplierFeeMsats = Math.max(0, Math.round(input.supplierFeeSats * 1000));
-    const stallFeeMsats = Math.max(0, Math.round(input.stallFeeSats * 1000));
+    const transferFeeMsats = Math.max(0, Math.round(input.transferFeeSats * 1000));
 
-    const requester = this.signerForRole(input.toRole).npub;
+    const requester = this.owner.npub;
     const supplier = this.signerForRole(input.fromRole).npub;
-    const stall = this.settler.npub;
+    const target = this.signerForRole(input.toRole).npub;
 
     let supplierPaymentRef: string | undefined;
-    let stallPaymentRef: string | undefined;
-    let paymentStatus: StallTransferReceipt['paymentStatus'] = 'simulated';
+    let transferPaymentRef: string | undefined;
+    let paymentStatus: PeerTransferEventPayload['paymentStatus'] = 'simulated';
     let paymentError: string | undefined;
 
     if (this.payoutAdapter instanceof NwcPayoutAdapter) {
       let supplierPaid = supplierFeeMsats <= 0;
-      let stallPaid = stallFeeMsats <= 0;
+      let transferPaid = transferFeeMsats <= 0;
       try {
         if (supplierFeeMsats > 0) {
           const supplierPay = await this.payoutAdapter.transferBetweenNpubs({
             fromNpub: requester,
             toNpub: supplier,
             amountMsats: supplierFeeMsats,
-            memo: `stall supplier fee ${cid}`,
+            memo: `peer supplier fee ${cid}`,
             settlementRef: cid,
           });
           supplierPaymentRef = supplierPay.tokenRef;
           supplierPaid = true;
         }
-        if (stallFeeMsats > 0) {
-          const stallPay = await this.payoutAdapter.transferBetweenNpubs({
+        if (transferFeeMsats > 0) {
+          const transferPay = await this.payoutAdapter.transferBetweenNpubs({
             fromNpub: requester,
-            toNpub: stall,
-            amountMsats: stallFeeMsats,
-            memo: `stall fee ${cid}`,
+            toNpub: target,
+            amountMsats: transferFeeMsats,
+            memo: `peer transfer fee ${cid}`,
             settlementRef: cid,
           });
-          stallPaymentRef = stallPay.tokenRef;
-          stallPaid = true;
+          transferPaymentRef = transferPay.tokenRef;
+          transferPaid = true;
         }
       } catch (error) {
         paymentError = error instanceof Error ? error.message : String(error);
       }
 
-      paymentStatus = supplierPaid && stallPaid ? 'paid' : supplierPaid || stallPaid ? 'partial' : 'failed';
+      paymentStatus = supplierPaid && transferPaid ? 'paid' : supplierPaid || transferPaid ? 'partial' : 'failed';
     }
 
-    this.bumpMarketFlow(input.toRole, 'out', supplierFeeMsats + stallFeeMsats);
-    this.bumpMarketFlow(input.fromRole, 'in', Math.max(0, supplierFeeMsats - stallFeeMsats));
-    this.bumpMarketFlow('settler', 'in', stallFeeMsats);
+    this.bumpMarketFlow('owner', 'out', supplierFeeMsats + transferFeeMsats);
+    this.bumpMarketFlow(input.fromRole, 'in', supplierFeeMsats);
+    this.bumpMarketFlow(input.toRole, 'in', transferFeeMsats);
 
-    const receipt: StallTransferReceipt = {
-      transferId: randomId('stall'),
-      cid,
+    const receipt: PeerTransferEventPayload = {
+      type: 'peer.transfer',
+      transferId: randomId('peer'),
       blobId: input.blobId,
-      fromRole: input.fromRole,
-      toRole: input.toRole,
+      cid,
+      contentRef: cid,
+      merkleRoot: blob.merkleRoot,
+      sourceRole: input.fromRole,
+      targetRole: input.toRole,
+      sourceNpub: supplier,
+      targetNpub: target,
+      requesterNpub: requester,
       supplierFeeMsats,
-      stallFeeMsats,
-      requester,
-      supplier,
-      stall,
+      transferFeeMsats,
       paymentStatus,
       supplierPaymentRef,
-      stallPaymentRef,
+      transferPaymentRef,
       paymentError,
-      createdAt: Math.floor(Date.now() / 1000),
+      sourceWrapFingerprint: sourceWrap.wrapKeyFingerprint,
+      targetWrapFingerprint: targetWrap.wrapKeyFingerprint,
+      targetReceivedRewrap: true,
+      targetAckTs: Math.floor(Date.now() / 1000),
     };
-    this.stallTransfers.push(receipt);
-    return receipt;
+    const event = await this.transport.publish(targetSigner, receipt);
+    this.sessionPeerTransferIds.add(event.payload.transferId);
+    await this.publishPeerTransferNote(event);
+    return event;
+  }
+
+  private async publishPeerTransferNote(event: PublishedFlowerEvent<PeerTransferEventPayload>): Promise<string | null> {
+    const note = await this.publishKind1Note(
+      this.owner,
+      [
+        ['t', 'flower-market'],
+        ['t', 'peer-transfer'],
+        ['c', event.payload.transferId],
+        ['r', event.payload.contentRef],
+        ['p', event.payload.targetNpub],
+      ],
+      JSON.stringify({
+        kind: 'flower-peer-transfer',
+        transferId: event.payload.transferId,
+        blobId: event.payload.blobId,
+        sourceRole: event.payload.sourceRole,
+        targetRole: event.payload.targetRole,
+        sourceNpub: event.payload.sourceNpub,
+        targetNpub: event.payload.targetNpub,
+        requesterNpub: event.payload.requesterNpub,
+        contentRef: event.payload.contentRef,
+        cid: event.payload.cid,
+        merkleRoot: event.payload.merkleRoot,
+        sourceWrapFingerprint: event.payload.sourceWrapFingerprint,
+        targetWrapFingerprint: event.payload.targetWrapFingerprint,
+        targetReceivedRewrap: event.payload.targetReceivedRewrap,
+        targetAckTs: event.payload.targetAckTs,
+        supplierFeeMsats: event.payload.supplierFeeMsats,
+        transferFeeMsats: event.payload.transferFeeMsats,
+        paymentStatus: event.payload.paymentStatus,
+        supplierPaymentRef: event.payload.supplierPaymentRef ?? null,
+        transferPaymentRef: event.payload.transferPaymentRef ?? null,
+        paymentError: event.payload.paymentError ?? null,
+        peerTransferEventId: event.id,
+        peerTransferPubkey: event.pubkey,
+      }),
+    );
+
+    return note?.id ?? null;
   }
 
   async retrieveBlobViaProvider(input: {

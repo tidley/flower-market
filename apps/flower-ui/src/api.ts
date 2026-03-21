@@ -114,14 +114,14 @@ export function publishTransferProof(transferId: string) {
   });
 }
 
-export function requestStallTransfer(input: {
+export function requestPeerTransfer(input: {
   blobId: string;
   fromRole: 'provider' | 'provider2' | 'provider3';
   toRole: 'provider' | 'provider2' | 'provider3';
   supplierFeeSats: number;
-  stallFeeSats: number;
+  transferFeeSats: number;
 }) {
-  return request('/api/stall/transfers', {
+  return request('/api/peer/transfers', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),

@@ -1,7 +1,7 @@
 # Flower Market Demo Runbook (4-5 windows)
 
 ## Goal
-Show challenger + three SP dashboards, inter-SP transfer via Market Stall, and a live Nostr feed view.
+Show challenger + three SP dashboards, peer transfer between SPs, and a live Nostr feed view.
 
 ## Prereqs
 - `npm install`
@@ -35,15 +35,15 @@ npm run ui:dev
 
 ## Demo flow
 1. In challenger window, click **Seed Blob** once.
-2. In challenger window, in **Inter-SP Data Market (Market Stall)** request transfer:
+2. In challenger window, in **Peer-to-peer transfer controls** request transfer:
    - `From SP`: SP1
    - `To SP`: SP3
-   - fees (for example): supplier `5 sats`, stall `1 sat`
+   - fees (for example): supplier `5 sats`, transfer `1 sat`
 3. Verify **Replica Registry (CID → SP roots)** now includes SP3 for the CID.
 4. Start challenges (**Post Challenge Now** or **Start 30s Auto Challenges**).
 5. Watch challenger **Recent Settlements + Payout Receipts** populate with 3-tier payouts (15/12/9 sats).
 6. Watch SP views for tracked files, payout receipts, and last paid times.
-7. Watch **Market Stall Transfer Receipts** for inter-SP transfer + fee breakdown.
+7. Watch **Peer transfer receipts** for SP-to-SP rewrap evidence + fee breakdown.
 
 ## Deterministic one-shot timeline script
 
@@ -59,5 +59,5 @@ This seeds a blob, publishes one challenge, has provider+provider2 respond, then
 ## Notes
 - SP2 and SP3 are separate runtime identities (`provider2`, `provider3`).
 - Payout receipts in this demo flow are shown as Lightning payout records.
-- Market stall transfer flow models: requester pays supplier fee + stall fee; stall fee is deducted from supplier economics and credited to stall (`settler`) in balances.
+- Peer transfer flow models: owner pays supplier fee + transfer fee; the receipt records source SP, target SP, CID, merkle root, and the target acknowledgement of the rewrap.
 - This is a demo payout path, not production mint custody logic.

@@ -99,12 +99,12 @@ describe('FlowerDaemon', () => {
       fileName: 'demo.mp3',
     });
 
-    await daemon.requestTransferViaStall({
+    await daemon.requestPeerTransfer({
       blobId: 'song_blob',
       fromRole: 'provider',
       toRole: 'provider3',
       supplierFeeSats: 1,
-      stallFeeSats: 1,
+      transferFeeSats: 1,
     });
 
     const retrieved = await daemon.retrieveBlobViaProvider({ blobId: 'song_blob', fromRole: 'provider3' });
@@ -138,26 +138,34 @@ describe('FlowerDaemon', () => {
     daemons.push(daemon);
     await daemon.start();
 
-    const original = 'stall transfer payload';
+    const original = 'peer transfer payload';
     daemon.seedBlob('transfer_blob', original);
 
-    const receipt = await daemon.requestTransferViaStall({
+    const receipt = await daemon.requestPeerTransfer({
       blobId: 'transfer_blob',
       fromRole: 'provider',
       toRole: 'provider3',
       supplierFeeSats: 1,
-      stallFeeSats: 1,
+      transferFeeSats: 1,
     });
-    expect(receipt.fromRole).toBe('provider');
-    expect(receipt.toRole).toBe('provider3');
+    expect(receipt.payload.sourceRole).toBe('provider');
+    expect(receipt.payload.targetRole).toBe('provider3');
+    expect(receipt.payload.targetReceivedRewrap).toBe(true);
+    expect(receipt.payload.merkleRoot).toBeTruthy();
 
     const retrieved = await daemon.retrieveBlobViaProvider({ blobId: 'transfer_blob', fromRole: 'provider3' });
     expect(retrieved.deliveredCiphertext).toBe(original);
     expect(retrieved.plaintextPayload).toBe(original);
     expect(retrieved.envelope.wrapsByProvider.provider3?.sourceRole).toBe('provider');
+
+    const snapshot = await daemon.getSnapshot();
+    expect(snapshot.peerTransfers.some((entry) => entry.id === receipt.id)).toBe(true);
+
+    const messages = daemon.getPublishedMessages();
+    expect(messages.some((message) => message.content.includes('flower-peer-transfer'))).toBe(true);
   });
 
-  it('tracks replica coverage after randomized stall transfers across several blobs', async () => {
+  it('tracks replica coverage after randomized peer transfers across several blobs', async () => {
     const daemon = new FlowerDaemon({ syncIntervalMs: 25, ignoreRelayHistory: true });
     daemons.push(daemon);
     await daemon.start();
@@ -189,14 +197,14 @@ describe('FlowerDaemon', () => {
       const toCandidates = roles.filter((role) => role !== fromRole);
       const toRole = toCandidates[Math.floor(rand() * toCandidates.length)];
 
-      const receipt = await daemon.requestTransferViaStall({
+      const receipt = await daemon.requestPeerTransfer({
         blobId: blob.blobId,
         fromRole,
         toRole,
         supplierFeeSats: 1,
-        stallFeeSats: 1,
+        transferFeeSats: 1,
       });
-      expect(receipt.blobId).toBe(blob.blobId);
+      expect(receipt.payload.blobId).toBe(blob.blobId);
       hostsByCid.get(blob.contentRef)?.add(toRole);
     }
 

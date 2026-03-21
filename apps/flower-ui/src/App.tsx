@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { RetrievedBlobView, RuntimeSnapshot } from '../../../packages/flower-runtime/src/index.ts';
-import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestStallTransfer, respondToChallenge, retrieveBlob, uploadBlob, type PublishedMessage } from './api';
+import { createChallenge, fetchPublishedMessages, fetchRuntimeState, requestPeerTransfer, respondToChallenge, retrieveBlob, uploadBlob, type PublishedMessage } from './api';
 
 function emptySnapshot(): RuntimeSnapshot {
   return {
@@ -14,15 +14,15 @@ function emptySnapshot(): RuntimeSnapshot {
     challenges: [],
     listings: [],
     replicaRegistry: [],
-    stallTransfers: [],
+    peerTransfers: [],
   };
 }
 
-type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2' | 'sp3' | 'stall';
+type DemoView = 'all' | 'challenger' | 'sp1' | 'sp2' | 'sp3' | 'peer';
 
 function parseView(): DemoView {
   const raw = new URLSearchParams(window.location.search).get('view');
-  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2' || raw === 'sp3' || raw === 'stall') return raw;
+  if (raw === 'challenger' || raw === 'sp1' || raw === 'sp2' || raw === 'sp3' || raw === 'peer') return raw;
   return 'all';
 }
 
@@ -83,7 +83,7 @@ function participantLabel(role: string): string {
   if (role === 'provider') return 'SP1';
   if (role === 'provider2') return 'SP2';
   if (role === 'provider3') return 'SP3';
-  if (role === 'settler') return 'Stall';
+  if (role === 'settler') return 'Settlement';
   return role;
 }
 
@@ -118,12 +118,12 @@ export function App() {
     base64: string;
   } | null>(null);
   const [publishedEvents, setPublishedEvents] = useState<PublishedMessage[]>([]);
-  const [stallBlobId, setStallBlobId] = useState('demo_blob');
-  const [stallFromRole, setStallFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
-  const [stallToRole, setStallToRole] = useState<'provider' | 'provider2' | 'provider3'>('provider3');
+  const [peerBlobId, setPeerBlobId] = useState('demo_blob');
+  const [peerFromRole, setPeerFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
+  const [peerToRole, setPeerToRole] = useState<'provider' | 'provider2' | 'provider3'>('provider3');
   const [retrieveFromRole, setRetrieveFromRole] = useState<'provider' | 'provider2' | 'provider3'>('provider');
   const [supplierFeeSats, setSupplierFeeSats] = useState(5);
-  const [stallFeeSats, setStallFeeSats] = useState(1);
+  const [transferFeeSats, setTransferFeeSats] = useState(1);
   const [rewardSchedule, setRewardSchedule] = useState<[number, number, number]>([15, 12, 9]);
   const [reliabilityBonusMsats, setReliabilityBonusMsats] = useState(1000);
   const [commitLeadSeconds, setCommitLeadSeconds] = useState(30);
@@ -143,7 +143,7 @@ export function App() {
         if (prev && next.blobs.some((blob) => blob.blobId === prev)) return prev;
         return next.blobs[0].blobId;
       });
-      setStallBlobId((prev) => {
+      setPeerBlobId((prev) => {
         if (next.blobs.length === 0) return '';
         if (prev && next.blobs.some((blob) => blob.blobId === prev)) return prev;
         return next.blobs[0].blobId;
@@ -388,14 +388,14 @@ export function App() {
     const providers = ['provider', 'provider2', 'provider3']
       .map((role) => toRow(role))
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
-    const stall = toRow('settler');
+    const settlement = toRow('settler');
 
-    const maxBalance = Math.max(0, owner?.balance ?? 0, stall?.balance ?? 0, ...providers.map((row) => row.balance));
+    const maxBalance = Math.max(0, owner?.balance ?? 0, settlement?.balance ?? 0, ...providers.map((row) => row.balance));
 
     return {
       owner,
       providers,
-      stall,
+      settlement,
       maxBalance,
     };
   }, [snapshot.balances]);
@@ -412,7 +412,7 @@ export function App() {
       latestStatus,
       openChallenges: openChallenges.length,
       activeProviders,
-      transferCount: snapshot.stallTransfers.length,
+      transferCount: snapshot.peerTransfers.length,
     };
   }, [snapshot, openChallenges.length]);
 
@@ -463,7 +463,7 @@ export function App() {
       <section className="hero">
         <div>
           <h1>Flower Market</h1>
-          <p className="lede">Control surface for DO, providers, stall transfers, and challenge rounds.</p>
+          <p className="lede">Control surface for DO, providers, peer transfers, and challenge rounds.</p>
           <p>
             Quick links:{' '}
             <a href="/?view=challenger" target="_blank" rel="noreferrer">
@@ -482,8 +482,8 @@ export function App() {
               SP3
             </a>
             {' • '}
-            <a href="/?view=stall" target="_blank" rel="noreferrer">
-              Stall
+            <a href="/?view=peer" target="_blank" rel="noreferrer">
+              Peer transfers
             </a>
           </p>
         </div>
@@ -508,13 +508,13 @@ export function App() {
         <div className="summary-card"><span>Open challenges</span><strong>{summary.openChallenges}</strong></div>
         <div className="summary-card"><span>Active providers</span><strong>{summary.activeProviders}/3</strong></div>
         <div className="summary-card"><span>Total sats</span><strong>{summary.totalSats}</strong></div>
-        <div className="summary-card"><span>Stall transfers</span><strong>{summary.transferCount}</strong></div>
+        <div className="summary-card"><span>Peer transfers</span><strong>{summary.transferCount}</strong></div>
       </section>
 
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>Window Mode</h2>
         <div className="view-pills">
-          {(['all', 'challenger', 'sp1', 'sp2', 'sp3', 'stall'] as DemoView[]).map((v) => (
+          {(['all', 'challenger', 'sp1', 'sp2', 'sp3', 'peer'] as DemoView[]).map((v) => (
             <button key={v} onClick={() => setView(v)} className={view === v ? 'badge' : ''}>
               {v}
             </button>
@@ -572,23 +572,23 @@ export function App() {
           </div>
         ))}
 
-        <p className="balance-section">• Stall</p>
-        {balanceView.stall && (
-          <div className="balance-row" key={balanceView.stall.role}>
-            <span className="participant">{balanceView.stall.label}</span>
-            <span className="balance-num">{balanceView.stall.balance}</span>
+        <p className="balance-section">• Settlement</p>
+        {balanceView.settlement && (
+          <div className="balance-row" key={balanceView.settlement.role}>
+            <span className="participant">{balanceView.settlement.label}</span>
+            <span className="balance-num">{balanceView.settlement.balance}</span>
             <span className="bar-cell">
               <span className="bar-track">
                 <span
                   className="bar-fill"
-                  style={{ width: `${balanceView.maxBalance > 0 ? (balanceView.stall.balance / balanceView.maxBalance) * 100 : 0}%` }}
+                  style={{ width: `${balanceView.maxBalance > 0 ? (balanceView.settlement.balance / balanceView.maxBalance) * 100 : 0}%` }}
                 />
               </span>
             </span>
             <span className="activity">
-              {balanceView.stall.activity.funded === 0 && balanceView.stall.activity.in === 0 && balanceView.stall.activity.out === 0
+              {balanceView.settlement.activity.funded === 0 && balanceView.settlement.activity.in === 0 && balanceView.settlement.activity.out === 0
                 ? '—'
-                : `F${balanceView.stall.activity.funded} I${balanceView.stall.activity.in} O${balanceView.stall.activity.out}`}
+                : `F${balanceView.settlement.activity.funded} I${balanceView.settlement.activity.in} O${balanceView.settlement.activity.out}`}
             </span>
           </div>
         )}
@@ -646,13 +646,13 @@ export function App() {
                   if (result.deduped) {
                     setSeedNotice(result.message ?? `The file (${seedBlobId}) is already stored as (${result.existingBlobId ?? result.blobId}) with CID ${result.contentRef}.`);
                     setChallengeBlobId(result.existingBlobId ?? result.blobId);
-                    setStallBlobId(result.existingBlobId ?? result.blobId);
+                    setPeerBlobId(result.existingBlobId ?? result.blobId);
                     return;
                   }
 
                   setSeedNotice(`Stored blob (${result.blobId}) with CID ${result.contentRef}.`);
                   setChallengeBlobId(result.blobId);
-                  setStallBlobId(result.blobId);
+                  setPeerBlobId(result.blobId);
                 })
               }
               disabled={!seedBlobId || (!seedBlobContent && !seedFile)}
@@ -826,15 +826,15 @@ export function App() {
               onClick={() =>
                 void run('scenario: seed + replicate to SP3', async () => {
                   await uploadBlob(seedBlobId, seedBlobContent);
-                  await requestStallTransfer({
+                  await requestPeerTransfer({
                     blobId: seedBlobId,
                     fromRole: 'provider',
                     toRole: 'provider3',
                     supplierFeeSats: 5,
-                    stallFeeSats: 1,
+                    transferFeeSats: 1,
                   });
                   setChallengeBlobId(seedBlobId);
-                  setStallBlobId(seedBlobId);
+                  setPeerBlobId(seedBlobId);
                 })
               }
             >
@@ -861,9 +861,9 @@ export function App() {
             </button>
           </div>
 
-          <h3 style={{ marginTop: 16 }}>Inter-SP Data Market (Market Stall)</h3>
+          <h3 style={{ marginTop: 16 }}>Peer-to-peer transfer controls</h3>
           <label>Blob</label>
-          <select value={stallBlobId} onChange={(event) => setStallBlobId(event.target.value)}>
+          <select value={peerBlobId} onChange={(event) => setPeerBlobId(event.target.value)}>
             <option value="">Select blob</option>
             {snapshot.blobs.map((blob) => (
               <option key={blob.blobId} value={blob.blobId}>
@@ -874,12 +874,7 @@ export function App() {
           <div className="dual" style={{ marginTop: 8 }}>
             <div>
               <label>From SP</label>
-              <select
-                value={stallFromRole}
-                onChange={(event) =>
-                  setStallFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')
-                }
-              >
+              <select value={peerFromRole} onChange={(event) => setPeerFromRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
                 <option value="provider">SP1</option>
                 <option value="provider2">SP2</option>
                 <option value="provider3">SP3</option>
@@ -887,12 +882,7 @@ export function App() {
             </div>
             <div>
               <label>To SP</label>
-              <select
-                value={stallToRole}
-                onChange={(event) =>
-                  setStallToRole(event.target.value as 'provider' | 'provider2' | 'provider3')
-                }
-              >
+              <select value={peerToRole} onChange={(event) => setPeerToRole(event.target.value as 'provider' | 'provider2' | 'provider3')}>
                 <option value="provider">SP1</option>
                 <option value="provider2">SP2</option>
                 <option value="provider3">SP3</option>
@@ -910,31 +900,31 @@ export function App() {
               />
             </div>
             <div>
-              <label>Stall fee (sats)</label>
+              <label>Transfer fee (sats)</label>
               <input
                 type="number"
-                value={stallFeeSats}
+                value={transferFeeSats}
                 min={0}
-                onChange={(event) => setStallFeeSats(Number(event.target.value))}
+                onChange={(event) => setTransferFeeSats(Number(event.target.value))}
               />
             </div>
           </div>
           <button
             style={{ marginTop: 8 }}
             onClick={() =>
-              void run('stall transfer', () =>
-                requestStallTransfer({
-                  blobId: stallBlobId,
-                  fromRole: stallFromRole,
-                  toRole: stallToRole,
+              void run('peer transfer', () =>
+                requestPeerTransfer({
+                  blobId: peerBlobId,
+                  fromRole: peerFromRole,
+                  toRole: peerToRole,
                   supplierFeeSats,
-                  stallFeeSats,
+                  transferFeeSats,
                 }),
               )
             }
-            disabled={!stallBlobId || stallFromRole === stallToRole}
+            disabled={!peerBlobId || peerFromRole === peerToRole}
           >
-            Request Transfer via Stall
+            Request Peer Transfer
           </button>
 
           <details className="evidence-block" style={{ marginTop: 16 }}>
@@ -959,34 +949,62 @@ export function App() {
             )}
           </details>
 
-          <h3 style={{ marginTop: 16 }}>Market Stall Transfer Receipts</h3>
-          {snapshot.stallTransfers.length === 0 ? (
-            <p className="muted">No inter-SP transfers yet.</p>
+          <h3 style={{ marginTop: 16 }}>Peer transfer receipts</h3>
+          {snapshot.peerTransfers.length === 0 ? (
+            <p className="muted">No peer transfers yet.</p>
           ) : (
-            snapshot.stallTransfers.slice(0, 8).map((receipt) => (
-              <div key={receipt.transferId} className="result-card">
+            snapshot.peerTransfers.slice(0, 8).map((receipt) => (
+              <div key={receipt.id} className="result-card">
                 <div className="result-head">
-                  <strong>{receipt.transferId}</strong>
+                  <strong>{receipt.payload.transferId}</strong>
                   <span className="badge">
-                    {receipt.fromRole} → {receipt.toRole}
+                    {roleLabel(receipt.payload.sourceRole)} → {roleLabel(receipt.payload.targetRole)}
                   </span>
                 </div>
                 <div className="sub-row">
                   <span>CID</span>
-                  <code>{shortId(receipt.cid, 14)}</code>
+                  <code>{shortId(receipt.payload.cid, 14)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Content ref</span>
+                  <code>{shortId(receipt.payload.contentRef, 14)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Merkle root</span>
+                  <code>{shortId(receipt.payload.merkleRoot, 14)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Source SP</span>
+                  <code>{shortId(receipt.payload.sourceNpub, 12)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Target SP</span>
+                  <code>{shortId(receipt.payload.targetNpub, 12)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Blob</span>
+                  <span>{receipt.payload.blobId}</span>
                 </div>
                 <div className="sub-row">
                   <span>Supplier fee</span>
-                  <span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span>
+                  <span>{Math.round(receipt.payload.supplierFeeMsats / 1000)} sats</span>
                 </div>
                 <div className="sub-row">
-                  <span>Stall fee</span>
-                  <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
+                  <span>Transfer fee</span>
+                  <span>{Math.round(receipt.payload.transferFeeMsats / 1000)} sats</span>
                 </div>
-                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.paymentStatus}</span></div>
-                {receipt.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.supplierPaymentRef, 12)}</code></div>}
-                {receipt.stallPaymentRef && <div className="sub-row"><span>Stall payment</span><code>{shortId(receipt.stallPaymentRef, 12)}</code></div>}
-                {receipt.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.paymentError}</span></div>}
+                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.payload.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.payload.paymentStatus}</span></div>
+                {receipt.payload.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.payload.supplierPaymentRef, 12)}</code></div>}
+                {receipt.payload.transferPaymentRef && <div className="sub-row"><span>Transfer payment</span><code>{shortId(receipt.payload.transferPaymentRef, 12)}</code></div>}
+                <div className="sub-row">
+                  <span>Target ack</span>
+                  <span className="muted">
+                    {receipt.payload.targetReceivedRewrap
+                      ? `${shortId(receipt.pubkey, 12)} at ${fmtTs(receipt.payload.targetAckTs)}`
+                      : 'missing'}
+                  </span>
+                </div>
+                {receipt.payload.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.payload.paymentError}</span></div>}
                 <div className="sub-row">
                   <span>Time</span>
                   <span>{fmtTs(receipt.createdAt)}</span>
@@ -1134,7 +1152,7 @@ export function App() {
               publishedEvents.slice(0, 30).map((event) => {
                 const tagMap = new Map(event.tags.map((t) => [t[0], t[1]]));
                 const eventType =
-                  tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : 'note');
+                  tagMap.get('f') ?? (tagMap.get('t') === 'proof-reply' ? 'proof-reply' : tagMap.get('t') === 'peer-transfer' ? 'peer-transfer' : 'note');
                 return (
                   <div key={event.id} className="result-card">
                     <div className="result-head">
@@ -1266,54 +1284,70 @@ export function App() {
         </section>
       )}
 
-      {(view === 'all' || view === 'stall') && (
+      {(view === 'all' || view === 'peer') && (
         <section className="panel" style={{ marginTop: 16 }}>
-          <h2>Stall View</h2>
+          <h2>Peer Transfer View</h2>
           <p className="muted">
-            Stall routes DO uploads/replication and re-wrap data between SPs. Each retrieval now
-            shows the SP unwrap followed by the DO unwrap before plaintext is returned.
+            Peer transfers rewrap data directly between storage providers. The owner-visible receipt
+            records source SP, target SP, CID, merkle root, and the target acknowledgement of the rewrap.
           </p>
 
-          <h3>Re-wrap / Transfer log</h3>
-          {snapshot.stallTransfers.length === 0 ? (
-            <p className="muted">No stall transfers yet.</p>
+          <h3>Transfer log</h3>
+          {snapshot.peerTransfers.length === 0 ? (
+            <p className="muted">No peer transfers yet.</p>
           ) : (
-            snapshot.stallTransfers.map((receipt) => (
-              <div key={`stall-${receipt.transferId}`} className="result-card">
+            snapshot.peerTransfers.map((receipt) => (
+              <div key={`peer-${receipt.id}`} className="result-card">
                 <div className="result-head">
-                  <strong>{receipt.transferId}</strong>
+                  <strong>{receipt.payload.transferId}</strong>
                   <span className="badge">
-                    {roleLabel(receipt.fromRole)} → {roleLabel(receipt.toRole)}
+                    {roleLabel(receipt.payload.sourceRole)} → {roleLabel(receipt.payload.targetRole)}
                   </span>
                 </div>
                 <div className="sub-row">
                   <span>CID</span>
-                  <code>{receipt.cid}</code>
+                  <code>{receipt.payload.cid}</code>
                 </div>
                 <div className="sub-row">
                   <span>Blob</span>
-                  <span>{receipt.blobId}</span>
+                  <span>{receipt.payload.blobId}</span>
                 </div>
                 <div className="sub-row">
-                  <span>Requester</span>
-                  <code>{shortId(receipt.requester, 10)}</code>
+                  <span>Content ref</span>
+                  <code>{shortId(receipt.payload.contentRef, 14)}</code>
                 </div>
                 <div className="sub-row">
-                  <span>Supplier</span>
-                  <code>{shortId(receipt.supplier, 10)}</code>
+                  <span>Merkle root</span>
+                  <code>{shortId(receipt.payload.merkleRoot, 14)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Source SP</span>
+                  <code>{shortId(receipt.payload.sourceNpub, 10)}</code>
+                </div>
+                <div className="sub-row">
+                  <span>Target SP</span>
+                  <code>{shortId(receipt.payload.targetNpub, 10)}</code>
                 </div>
                 <div className="sub-row">
                   <span>Supplier fee</span>
-                  <span>{Math.round(receipt.supplierFeeMsats / 1000)} sats</span>
+                  <span>{Math.round(receipt.payload.supplierFeeMsats / 1000)} sats</span>
                 </div>
                 <div className="sub-row">
-                  <span>Stall fee</span>
-                  <span>{Math.round(receipt.stallFeeMsats / 1000)} sats</span>
+                  <span>Transfer fee</span>
+                  <span>{Math.round(receipt.payload.transferFeeMsats / 1000)} sats</span>
                 </div>
-                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.paymentStatus}</span></div>
-                {receipt.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.supplierPaymentRef, 12)}</code></div>}
-                {receipt.stallPaymentRef && <div className="sub-row"><span>Stall payment</span><code>{shortId(receipt.stallPaymentRef, 12)}</code></div>}
-                {receipt.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.paymentError}</span></div>}
+                <div className="sub-row"><span>Payment status</span><span className={`chip ${receipt.payload.paymentStatus === 'paid' ? 'settled' : 'open'}`}>{receipt.payload.paymentStatus}</span></div>
+                {receipt.payload.supplierPaymentRef && <div className="sub-row"><span>Supplier payment</span><code>{shortId(receipt.payload.supplierPaymentRef, 12)}</code></div>}
+                {receipt.payload.transferPaymentRef && <div className="sub-row"><span>Transfer payment</span><code>{shortId(receipt.payload.transferPaymentRef, 12)}</code></div>}
+                <div className="sub-row">
+                  <span>Target ack</span>
+                  <span className="muted">
+                    {receipt.payload.targetReceivedRewrap
+                      ? `${shortId(receipt.pubkey, 12)} at ${fmtTs(receipt.payload.targetAckTs)}`
+                      : 'missing'}
+                  </span>
+                </div>
+                {receipt.payload.paymentError && <div className="sub-row"><span>Error</span><span className="muted">{receipt.payload.paymentError}</span></div>}
                 <div className="sub-row">
                   <span>Time</span>
                   <span>{fmtTs(receipt.createdAt)}</span>
@@ -1329,7 +1363,7 @@ export function App() {
             snapshot.replicaRegistry.map((entry) => {
               const blobName = blobNameByContentRef.get(entry.cid) ?? 'unknown';
               return (
-                <div key={`stall-repl-${entry.cid}`} className="result-card">
+                <div key={`peer-repl-${entry.cid}`} className="result-card">
                   <div className="sub-row">
                     <span>Blob</span>
                     <span>{blobName}</span>

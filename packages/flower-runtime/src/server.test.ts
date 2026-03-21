@@ -58,4 +58,35 @@ describe('startFlowerDaemonServer', () => {
     expect(state.blobs).toHaveLength(1);
     expect(state.blobs[0]?.blobId).toBe('first-name');
   });
+
+  it('publishes peer transfers through the peer transfer endpoint', async () => {
+    const handle = await startFlowerDaemonServer({ httpPort: 0, syncIntervalMs: 50 });
+    cleanup.push(() => handle.close());
+
+    await handle.request('/api/blobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ blobId: 'peer-source', content: 'peer payload' }),
+    });
+
+    const response = await handle.request('/api/peer/transfers', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        blobId: 'peer-source',
+        fromRole: 'provider',
+        toRole: 'provider3',
+        supplierFeeSats: 2,
+        transferFeeSats: 1,
+      }),
+    });
+
+    const transfer = (await response.json()) as { payload: { sourceRole: string; targetRole: string; targetReceivedRewrap: boolean; supplierFeeMsats: number; transferFeeMsats: number } };
+
+    expect(transfer.payload.sourceRole).toBe('provider');
+    expect(transfer.payload.targetRole).toBe('provider3');
+    expect(transfer.payload.targetReceivedRewrap).toBe(true);
+    expect(transfer.payload.supplierFeeMsats).toBe(2000);
+    expect(transfer.payload.transferFeeMsats).toBe(1000);
+  });
 });

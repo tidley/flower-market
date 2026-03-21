@@ -10,6 +10,7 @@ export const FLOWER_EVENT_KINDS = {
   marketAccept: 33103,
   marketTransferProof: 33104,
   marketSettlement: 33105,
+  peerTransfer: 33106,
 } as const;
 
 export type FlowerEventType = keyof typeof FLOWER_EVENT_KINDS;
@@ -136,6 +137,31 @@ export interface MarketSettlementEventPayload {
   eligibility: 'none' | 'pending' | 'active';
 }
 
+export interface PeerTransferEventPayload {
+  type: 'peer.transfer';
+  transferId: string;
+  blobId: string;
+  cid: string;
+  contentRef: string;
+  merkleRoot: string;
+  sourceRole: ProviderRole;
+  targetRole: ProviderRole;
+  sourceNpub: string;
+  targetNpub: string;
+  requesterNpub: string;
+  supplierFeeMsats: number;
+  transferFeeMsats: number;
+  paymentStatus: 'simulated' | 'paid' | 'partial' | 'failed';
+  supplierPaymentRef?: string;
+  transferPaymentRef?: string;
+  paymentError?: string;
+  sourceWrapFingerprint: string;
+  targetWrapFingerprint: string;
+  targetReceivedRewrap: true;
+  targetAckTs: number;
+  ownerNoteId?: string;
+}
+
 export type FlowerPayload =
   | ChallengeEventPayload
   | CommitEventPayload
@@ -145,7 +171,8 @@ export type FlowerPayload =
   | MarketOfferEventPayload
   | MarketAcceptEventPayload
   | MarketTransferProofEventPayload
-  | MarketSettlementEventPayload;
+  | MarketSettlementEventPayload
+  | PeerTransferEventPayload;
 
 export interface RelayFilter {
   kinds?: number[];
@@ -284,24 +311,6 @@ export interface RetrievedBlobView {
   envelope: BlobEnvelope;
 }
 
-export interface StallTransferReceipt {
-  transferId: string;
-  cid: string;
-  blobId: string;
-  fromRole: ProviderRole;
-  toRole: ProviderRole;
-  supplierFeeMsats: number;
-  stallFeeMsats: number;
-  requester: string;
-  supplier: string;
-  stall: string;
-  paymentStatus: 'simulated' | 'paid' | 'partial' | 'failed';
-  supplierPaymentRef?: string;
-  stallPaymentRef?: string;
-  paymentError?: string;
-  createdAt: number;
-}
-
 export interface RuntimeSnapshot {
   updatedAt: number;
   relayMode: 'memory' | 'nostr';
@@ -313,5 +322,5 @@ export interface RuntimeSnapshot {
   challenges: ChallengeRuntimeView[];
   listings: MarketplaceRuntimeView[];
   replicaRegistry: ReplicaRegistryEntry[];
-  stallTransfers: StallTransferReceipt[];
+  peerTransfers: PublishedFlowerEvent<PeerTransferEventPayload>[];
 }

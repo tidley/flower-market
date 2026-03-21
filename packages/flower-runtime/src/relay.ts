@@ -25,6 +25,8 @@ function kindForPayload(payload: FlowerPayload, forceKind1 = false): number {
       return FLOWER_EVENT_KINDS.marketTransferProof;
     case 'market.settlement':
       return FLOWER_EVENT_KINDS.marketSettlement;
+    case 'peer.transfer':
+      return FLOWER_EVENT_KINDS.peerTransfer;
   }
 }
 

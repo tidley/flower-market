@@ -122,15 +122,15 @@ async function dispatchDaemonRequest(daemon: FlowerDaemon, request: DaemonApiReq
       return jsonResponse(200, result);
     }
 
-    if (request.method === 'POST' && request.pathname === '/api/stall/transfers') {
+    if (request.method === 'POST' && request.pathname === '/api/peer/transfers') {
       const body = await readJsonFromBody<{
         blobId: string;
         fromRole: 'provider' | 'provider2' | 'provider3';
         toRole: 'provider' | 'provider2' | 'provider3';
         supplierFeeSats: number;
-        stallFeeSats: number;
+        transferFeeSats: number;
       }>(request.body);
-      return jsonResponse(200, await daemon.requestTransferViaStall(body));
+      return jsonResponse(200, await daemon.requestPeerTransfer(body));
     }
 
     if (request.method === 'POST' && request.pathname === '/api/listings') {
